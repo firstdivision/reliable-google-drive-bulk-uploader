@@ -20,7 +20,7 @@ python3 -m http.server 8000 --bind 127.0.0.1 --directory phase0
 
 Open `http://localhost:8000/`. This serves static files only; it is a development tool, not an application backend.
 
-For an iPhone/iPad, serve the **contents of `phase0/`** on a trusted HTTPS static host. Hosting is not configured by this repository. Plain HTTP over a LAN is not sufficient for the Wake Lock experiment.
+For an iPhone/iPad, open the [live Phase 0 harness](https://firstdivision.github.io/reliable-google-drive-bulk-uploader/) in Safari. GitHub Pages serves only the contents of `phase0/` over HTTPS. The [Pages workflow](.github/workflows/pages.yml) checks the harness and publishes it on pushes to `main`, or when manually dispatched. Plain HTTP over a LAN is not sufficient for the Wake Lock experiment.
 
 Follow the [device test procedure](docs/phase-0-testing.md) and copy the [results template](docs/phase-0-results-template.md). Begin with a controlled 200–500 MB sample, not an entire library. Stop if storage growth persists or the device becomes unstable. The harness cannot measure Safari Documents & Data; record that manually in Settings.
 

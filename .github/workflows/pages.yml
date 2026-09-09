@@ -1,0 +1,38 @@
+name: Publish Phase 0 harness
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: github-pages
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v6
+      - name: Check harness
+        run: |
+          node --check phase0/baseline.js
+          node --check phase0/experiments.js
+          node --test tests/*.test.cjs
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v4
+        with:
+          path: phase0
+      - name: Deploy
+        id: deployment
+        uses: actions/deploy-pages@v4
