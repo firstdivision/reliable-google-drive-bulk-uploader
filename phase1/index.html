@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="referrer" content="strict-origin-when-cross-origin">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' https://accounts.google.com/gsi/client; style-src 'self' https://accounts.google.com/gsi/style; connect-src https://www.googleapis.com https://accounts.google.com/gsi/; frame-src https://accounts.google.com/gsi/; img-src 'self' data:; base-uri 'none'; form-action 'none'">
+  <title>Phase 1 — Google Drive upload test</title>
+  <link rel="stylesheet" href="style.css">
+  <script src="https://accounts.google.com/gsi/client" async></script>
+  <script src="wake.js" defer></script>
+  <script src="app.mjs" type="module"></script>
+</head>
+<body>
+<main>
+  <p><a href="../">Phase 0 tests</a> · Phase 1</p>
+  <h1>Test an upload to Google Drive</h1>
+  <p>One file at a time. Start with a small test photo, then try a larger video.</p>
+  <aside><strong>Keep this tab open.</strong> This spike resumes within this tab only. Reloading or closing Safari loses upload state. Check the destination in Drive before attempting the same file again.</aside>
+  <section aria-labelledby="connect-heading">
+    <h2 id="connect-heading">1. Connect Google Drive</h2>
+    <button id="connect" type="button">Connect Google Drive</button>
+    <p id="auth-status" role="status">Connect with the Google account added as a test user.</p>
+    <p>Access is limited to files and folders authorized for this app. Reauthorization must use the same account during this test.</p>
+  </section>
+  <section aria-labelledby="destination-heading">
+    <h2 id="destination-heading">2. Choose a test destination</h2>
+    <p>This spike lists folders accessible to this app. To start, create a test folder in My Drive.</p>
+    <label for="folder-name">New folder name</label>
+    <input id="folder-name" type="text" value="Reliable Uploader — Phase 1 tests" maxlength="150" disabled>
+    <button id="create-folder" type="button" disabled>Create test folder</button>
+    <label for="folders">Destination folder</label>
+    <select id="folders" disabled><option value="">Connect to load folders</option></select>
+    <button id="refresh-folders" type="button" disabled>Refresh folders</button>
+    <p id="folder-status" role="status">No destination selected.</p>
+    <a id="folder-link" hidden target="_blank" rel="noopener noreferrer">Open destination in Drive</a>
+  </section>
+  <section aria-labelledby="upload-heading">
+    <h2 id="upload-heading">3. Select and upload one file</h2>
+    <label for="file">Test photo or video</label>
+    <input id="file" type="file" accept="image/*,video/*">
+    <p id="selection" role="status">No file selected.</p>
+    <p>After uploading starts, source and destination are fixed for this test. Use Pause / Resume for interruptions.</p>
+    <button id="upload" type="button" disabled>Upload file</button>
+    <button id="pause" type="button" disabled>Pause</button>
+    <button id="resume" type="button" disabled>Resume / Retry</button>
+    <label for="progress">Bytes confirmed by Google</label>
+    <progress id="progress" value="0" max="1"></progress>
+    <p id="progress-text">0 bytes confirmed</p>
+    <p id="upload-status" role="status">Ready to set up a test.</p>
+    <p id="file-id"></p>
+    <a id="result" hidden target="_blank" rel="noopener noreferrer">Open completed file in Drive</a>
+    <p id="network" role="status"></p>
+  </section>
+  <section aria-labelledby="wake-heading">
+    <h2 id="wake-heading">☕ Keep Screen Awake</h2>
+    <button id="wake" type="button" aria-pressed="false">Enable Keep Awake</button>
+    <p id="wake-status" role="status">Checking support…</p>
+    <p id="visibility" role="status"></p>
+    <p>Keep Safari visible and the phone plugged in. Keep Awake does not enable background uploads. Disable it when you finish testing.</p>
+  </section>
+  <details>
+    <summary>How to test interruption recovery</summary>
+    <ol>
+      <li>Upload a small file. Open it in Drive and check its name, size, destination, and contents.</li>
+      <li>For another test, reload only after recording the completed result and choose a different, larger video.</li>
+      <li>While uploading, tap Pause. Confirm progress stops, then tap Resume / Retry.</li>
+      <li>Briefly disconnect the network and reconnect. If cellular remains available, turning off Wi-Fi alone may not interrupt the upload.</li>
+      <li>Watch for retrying, or tap Resume / Retry if retries were exhausted. If authorization expires, reconnect Google with the same account and resume.</li>
+      <li>Confirm the completed video plays and only one copy exists for this test. Record the displayed Drive file ID before and after interruption.</li>
+    </ol>
+    <p>Do not use your whole library. This is an upload protocol test, not the finished batch uploader.</p>
+  </details>
+  <p>Your selected media uploads directly from this device to Google Drive. Google handles authorization. The static website host receives page requests, not your media or selection metadata. No analytics or token storage is used.</p>
+  <noscript>This test requires JavaScript.</noscript>
+</main>
+</body>
+</html>

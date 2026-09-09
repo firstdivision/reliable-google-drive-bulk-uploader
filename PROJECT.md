@@ -408,6 +408,14 @@ Do not claim that a wake lock gives a webpage native iOS background execution pr
 
 The preferred concept is the **large-batch dashboard**, not a detailed file-manager interface.
 
+The visual reference at `assets/design/mobile-dashboard-reference.png` is useful
+for the mobile card hierarchy, aggregate progress, large controls, status counts,
+and prominent Keep Awake treatment. Its message that users can close the app and
+uploads will automatically resume is not an accepted product claim: Safari may
+lose live `File` access, and Phase 0 produced a restoration failure with a retained
+selection. The implemented dashboard must instead explain the current lifecycle
+limits and any source-reselection recovery accurately.
+
 The main upload screen should communicate the state of the entire job at a glance.
 
 Example:
@@ -569,9 +577,33 @@ at `phase0/index.html`, with separate bounded-read and Wake Lock experiments at
 `phase0/experiments.html`. See the [device test procedure](docs/phase-0-testing.md)
 and [results template](docs/phase-0-results-template.md). WebKit bug 318572 remains
 NEW as checked on that date; this is external reported evidence, not local device
-validation. **Real-iPhone results are pending and the Phase 0 gate has not passed.**
-Android physical validation remains deferred. Do not start the Drive spike on the
-basis of harness completion or automated checks alone.
+validation. Initial user-reported [iPhone 16 Pro / iOS 26.6.1 storage observations](docs/phase-0-iphone-16-pro-ios-26.6.1.md)
+were recorded on 2026-09-09: the tested video selections did not show persistent
+growth approximately equal to selected media size, and most observed growth
+subsided after closing the tab and Safari. **Phase 0 decision: sufficient real-iPhone evidence
+for a bounded Phase 1 Drive spike, with documented limitations.** A subsequent
+user-reported 30-minute foreground test passed: initial/repeat bounded reads,
+screen staying awake, and app-switch recovery checks. Higher selection counts,
+whole-file integrity, and multi-hour operation remain unverified. This decision
+does not establish production safety.
+Keep Screen Awake kept the physical screen on for approximately three minutes
+(12:37–12:40 AM) with a 30-second auto-lock setting, as observed by the user.
+The later 30-minute sequence included successful app-switch/reacquisition checks
+by overall user report; exact UI states were not recorded.
+Follow-up user reports confirm bounded reads after switching to Reddit and back,
+but fully closing/reopening Safari produced “A problem repeatedly occurred” before
+the page loaded or a read was requested. This unresolved page restoration/loading
+failure is recorded in the same device report; its cause is not established.
+A follow-up comparison reopened the experiments page successfully with no file
+selected, but failed after selecting one small video. This associates failure
+with prior selection in that test, without establishing a cause. The user then
+confirmed that a fresh tab loads after the failure, and that clearing the
+selection before closing Safari allows successful reopening. This demonstrates
+page-access recovery for the harness, not retained source access or upload state.
+Future recovery must not depend on the user clearing a selection before an
+unexpected browser termination.
+Android physical validation remains deferred. The bounded Drive spike proceeds on
+the recorded real-iPhone evidence, not on harness completion or automated checks alone.
 
 Build the smallest possible static test page.
 
@@ -586,6 +618,15 @@ Validate:
 Stop and reconsider architecture if selection itself causes unacceptable storage consumption.
 
 ### Phase 1 — Google Drive Spike
+
+Implementation status (2026-09-09): the static Phase 1 spike is available under
+`phase1/`. It uses Google Identity Services' browser token model with `drive.file`,
+creates or lists app-accessible destination folders, reserves a stable Drive file
+ID, and uploads one file in resumable 8 MiB chunks. It supports same-tab pause,
+confirmed-offset probing, bounded transient retries, reauthorization with account
+pinning, and session-expiration reconciliation. See the [Phase 1 test procedure](docs/phase-1-testing.md).
+Real Google Drive/iPhone interruption testing is pending. Tokens, live files,
+session URLs, and progress are deliberately not persisted in this spike.
 
 Without React polish:
 

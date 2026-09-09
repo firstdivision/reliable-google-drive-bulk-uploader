@@ -28,11 +28,20 @@ jobs:
         run: |
           node --check phase0/baseline.js
           node --check phase0/experiments.js
+          node --check phase1/app.mjs
+          node --check phase1/google.mjs
+          node --check phase1/drive-upload.mjs
           node --test tests/*.test.cjs
+          node --test tests/*.test.mjs
       - uses: actions/configure-pages@v5
+      - name: Assemble static site
+        run: |
+          mkdir -p public/phase1
+          cp phase0/* public/
+          cp phase1/* public/phase1/
       - uses: actions/upload-pages-artifact@v4
         with:
-          path: phase0
+          path: public
       - name: Deploy
         id: deployment
         uses: actions/deploy-pages@v4
