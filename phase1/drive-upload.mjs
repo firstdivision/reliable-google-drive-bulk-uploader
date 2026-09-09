@@ -32,7 +32,7 @@ function delay(ms, signal) {
 
 /** One live File and destination identity; intentionally no persistence across reloads. */
 export class DriveUpload {
-  constructor({ file, folderId, getToken, onChange = () => {}, fetchImpl = fetch,
+  constructor({ file, folderId, getToken, onChange = () => {}, fetchImpl = globalThis.fetch.bind(globalThis),
     chunkSize = 8 * 1024 * 1024, maxRetries = 5, requestTimeoutMs = 120000,
     retryBaseMs = 1000, random = Math.random }) {
     if (!file || !Number.isSafeInteger(file.size) || file.size <= 0 || typeof file.slice !== 'function') {
