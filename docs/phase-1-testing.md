@@ -1,6 +1,7 @@
 # Phase 1 Google Drive spike
 
-Status: implementation complete; real Google Drive testing pending.
+Status: implementation complete; core real Google Drive/iPhone tests passed by
+user report on 2026-09-09. Phase 2 upload-engine work can proceed.
 
 Open the [Phase 1 test page](https://batchharbor.killfly.com/phase1/)
 in Safari. This spike uses the non-sensitive `drive.file` scope. It can create new
@@ -52,3 +53,24 @@ private Drive information.
 
 Passing this test supports building the queue engine. It does not establish batch,
 browser-restart, multi-hour, or production reliability.
+
+## Reported results — 2026-09-09
+
+The user reported that all tests in the preceding iPhone Safari checklist passed:
+
+- Google Drive connection and test-folder creation.
+- Small disposable photo/video upload, including size and readable/playable content checks.
+- Larger-video upload with mid-upload pause/resume, recovered progress, and an unchanged Drive file ID.
+- Brief network interruption and recovery, with instructions to avoid cellular masking the outage.
+- Duplicate checks: exactly one completed Drive file per test.
+
+This is an overall user-reported pass, not an agent-operated or instrumented test.
+Exact file sizes, elapsed times, confirmed offsets, HTTP statuses, browser/OS
+version, and loaded revision were not separately supplied for this run. Actual
+authorization expiry and resumable-session expiry were not separately reported
+as exercised. No private file identifiers or credentials are recorded here.
+
+**Decision: proceed to Phase 2, the multi-file upload engine.** This result does
+not validate thousands-of-files batches, multi-hour transfers, Android behavior,
+or recovery after reload/Safari termination. The Phase 0 selected-tab restoration
+limitation remains; Phase 1 state is still limited to the current tab.

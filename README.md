@@ -4,12 +4,13 @@ A planned mobile-first, static web app for uploading large photo/video batches d
 
 ## Current status
 
-**Phase 1 Google Drive spike implemented; real Drive testing pending.** [iPhone 16 Pro / iOS 26.6.1 observations](docs/phase-0-iphone-16-pro-ios-26.6.1.md) support the bounded next phase while retaining the selected-tab restoration limitation.
+**Phase 2 upload engine implemented; real-device batch testing pending.** The [Phase 1 results](docs/phase-1-testing.md#reported-results-2026-09-09) cover small-file upload, larger-video pause/resume, network interruption recovery, and duplicate checks. [iPhone 16 Pro / iOS 26.6.1 observations](docs/phase-0-iphone-16-pro-ios-26.6.1.md) retain the selected-tab restoration limitation.
 
 - `phase0/index.html`: metadata-only picker baseline with count, exact total bytes, and paginated filenames/types/sizes. No file-content reads.
 - `phase0/experiments.html`: separate, explicit 64 KiB readability checks and Screen Wake Lock controls.
 - Neither page uploads or persists media or selection metadata. Both use local assets only and block script network connections with Content Security Policy.
 - `phase1/`: Google authorization, app-accessible destination folders, and a one-file resumable upload with pause and interruption recovery. State is limited to the current tab.
+- `phase2/`: in-memory multi-file queue with two concurrent uploads, selection deduplication, batch pause/resume, Retry Failed, authorization recovery, and aggregate confirmed progress. A basic mobile test page reuses Phase 1's protocol, authentication, and wake lock. Follow the [Phase 2 test procedure](docs/phase-2-testing.md).
 
 ## Run the harness
 
@@ -21,7 +22,7 @@ python3 -m http.server 8000 --bind 127.0.0.1 --directory phase0
 
 Open `http://localhost:8000/`. This serves static files only; it is a development tool, not an application backend.
 
-The [BatchHarbor homepage](https://batchharbor.killfly.com/) describes the application and links its public policies. GitHub Pages serves the Phase 0 harness under `/phase0/` and Phase 1 under `/phase1/`, all over HTTPS. The [Pages workflow](.github/workflows/pages.yml) checks both before publishing on pushes to `main`, or when manually dispatched. Plain HTTP over a LAN is not sufficient for the Wake Lock experiment.
+The [BatchHarbor homepage](https://batchharbor.killfly.com/) describes the application and links its public policies. The [Pages workflow](.github/workflows/pages.yml) checks and publishes the Phase 0, Phase 1, and Phase 2 pages under `/phase0/`, `/phase1/`, and `/phase2/` on pushes to `main`, or when manually dispatched. Plain HTTP over a LAN is not sufficient for the Wake Lock experiment. To inspect Phase 2 locally, serve the repository root rather than only its subdirectory: it imports shared modules from Phase 1.
 
 The [live Phase 1 Drive spike](https://batchharbor.killfly.com/phase1/)
 is deployed alongside it. Follow the [Phase 1 test procedure](docs/phase-1-testing.md).
@@ -44,6 +45,11 @@ Requires Node.js 20+ for the dependency-free automated checks:
 node --check phase0/baseline.js
 node --check phase0/experiments.js
 node --check phase1/app.mjs
+node --check phase1/google.mjs
+node --check phase1/drive-upload.mjs
+node --check phase1/wake.js
+node --check phase2/app.mjs
+node --check phase2/upload-queue.mjs
 node --test tests/*.test.cjs
 node --test tests/*.test.mjs
 ```
@@ -52,7 +58,7 @@ These use synthetic files and browser API doubles. They do not establish Safari 
 
 ## Roadmap and constraints
 
-After real-iPhone Phase 0 validation: isolated Google Drive resumable-upload spike → upload engine → persistence/recovery → mobile batch dashboard → progressive stress tests.
+Next: validate Phase 2 with small real-device batches, then persistence/recovery → full mobile batch dashboard → progressive stress tests. Queue state and completed-file deduplication currently last only for this tab; reloading is not a supported recovery action.
 
 The intended application stack is React/TypeScript with Vite, IndexedDB, Google Identity Services, Drive REST API v3, and optional Screen Wake Lock. Media must travel directly to Google; completed files must stay completed across retries. Browser wake locks do not provide native background execution.
 

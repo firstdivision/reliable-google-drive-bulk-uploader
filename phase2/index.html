@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="referrer" content="strict-origin-when-cross-origin">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' https://accounts.google.com/gsi/client; style-src 'self' https://accounts.google.com/gsi/style; connect-src https://www.googleapis.com https://accounts.google.com/gsi/; frame-src https://accounts.google.com/gsi/; img-src 'self' data:; base-uri 'none'; form-action 'none'">
+  <title>BatchHarbor — Phase 2 batch test</title>
+  <link rel="icon" type="image/png" href="../assets/brand/reliable-uploader-logo.png">
+  <link rel="stylesheet" href="style.css">
+  <script src="https://accounts.google.com/gsi/client" async></script>
+  <script src="../phase1/wake.js" defer></script>
+  <script src="app.mjs" type="module"></script>
+</head>
+<body>
+<main>
+  <header class="brand">
+    <a href="../"><img src="../assets/brand/reliable-uploader-logo.png" alt="BatchHarbor home"></a>
+    <div><p class="eyebrow">BatchHarbor · Phase 2</p><h1>A batch, not a juggling act.</h1></div>
+  </header>
+  <p class="intro">Upload photos and videos directly to Google Drive. Start with a small disposable batch to test the new queue.</p>
+  <aside><strong>Keep this tab open and your phone plugged in.</strong> Upload state lives only in this tab. Reloading or closing Safari loses the queue. Check Drive before selecting the same files again. Background uploads and restart recovery are not guaranteed.</aside>
+
+  <section class="card" aria-labelledby="selection-heading">
+    <h2 id="selection-heading"><span class="step">1</span> Select photos &amp; videos</h2>
+    <label for="files">Select files / Add more</label>
+    <input id="files" type="file" accept="image/*,video/*" multiple>
+    <p id="selection-status" role="status">No files selected.</p>
+    <p class="muted">Add more joins the current batch and uploads automatically if it is running. Matching name, size, type, and modification time are skipped; this is not a content comparison. Empty files are not supported in this test.</p>
+    <button id="clear" type="button" disabled>Remove all unstarted files</button>
+  </section>
+
+  <section class="card" aria-labelledby="destination-heading">
+    <h2 id="destination-heading"><span class="step">2</span> Connect &amp; choose a destination</h2>
+    <button id="connect" type="button">Connect Google Drive</button>
+    <p id="auth-status" role="status">Use a Google account added as a test user.</p>
+    <p class="muted">Only app-accessible folders are listed with the narrow drive.file permission. Reconnect with the same account. The destination is fixed once this batch starts.</p>
+    <label for="folders">Destination folder</label>
+    <select id="folders" disabled><option value="">Connect to load folders</option></select>
+    <button id="refresh-folders" type="button" disabled>Refresh folders</button>
+    <details>
+      <summary>Create a test folder instead</summary>
+      <label for="folder-name">New folder name</label>
+      <input id="folder-name" type="text" value="BatchHarbor — Phase 2 tests" maxlength="150" disabled>
+      <button id="create-folder" type="button" disabled>Create test folder</button>
+    </details>
+    <p id="folder-status" role="status">No destination selected.</p>
+    <a id="folder-link" hidden target="_blank" rel="noopener noreferrer">Open destination in Drive</a>
+  </section>
+
+  <section class="card dashboard" aria-labelledby="batch-heading">
+    <h2 id="batch-heading"><span class="step">3</span> Your batch</h2>
+    <p id="percent" class="percent">0.0%</p>
+    <label class="muted" for="progress">Confirmed upload progress</label>
+    <progress id="progress" value="0" max="1"></progress>
+    <p id="progress-text">0 B of 0 B confirmed by Google</p>
+    <dl class="stats">
+      <div><dt>Selected</dt><dd id="selected">0</dd></div>
+      <div><dt>Completed</dt><dd id="completed">0</dd></div>
+      <div><dt>Active</dt><dd id="active">0</dd></div>
+      <div><dt>Remaining</dt><dd id="remaining">0</dd></div>
+      <div><dt>Failed</dt><dd id="failed">0</dd></div>
+    </dl>
+    <p id="batch-status" role="status">Ready when you are.</p>
+    <div class="actions">
+      <button id="upload" class="primary" type="button" disabled>Upload All</button>
+      <button id="pause" type="button" disabled>Pause All</button>
+      <button id="retry" class="retry" type="button" disabled>Retry Failed</button>
+    </div>
+    <p id="action-status" role="status"></p>
+    <p class="muted">Two concurrent uploads · 8 MiB chunks · bounded automatic retries. Retry Failed also resumes paused work, but never reuploads completed files.</p>
+    <p id="network" role="status"></p>
+  </section>
+
+  <section class="card awake" aria-labelledby="wake-heading">
+    <h2 id="wake-heading">☕ Keep Screen Awake</h2>
+    <button id="wake" type="button" aria-pressed="false">Enable Keep Awake</button>
+    <p id="wake-status" role="status">Checking support…</p>
+    <p id="visibility" class="muted"></p>
+    <p>Keep the page visible and stay connected. A wake lock is not background execution. Disable it when finished.</p>
+  </section>
+
+  <details id="details" class="card">
+    <summary>File details &amp; failures</summary>
+    <label class="check"><input id="failed-only" type="checkbox"> Show failed files only</label>
+    <p class="muted">Up to 50 files per page. Removing a queue entry never deletes source media or Drive content.</p>
+    <ul id="items"></ul>
+    <div class="actions"><button id="previous" type="button" disabled>Previous</button><button id="next" type="button" disabled>Next</button></div>
+    <p id="page">Page 1 of 1</p>
+  </details>
+  <footer>
+    <p>Media goes directly from this browser to Google Drive. No application backend, analytics, or saved tokens. Selection deduplication and completed-file records last only for this tab.</p>
+    <p><a href="../phase1/">Single-file test</a> · <a href="../phase0/">Browser tests</a> · <a href="../privacy/">Privacy</a> · <a href="../terms/">Terms</a></p>
+  </footer>
+  <noscript>This test requires JavaScript.</noscript>
+</main>
+</body>
+</html>

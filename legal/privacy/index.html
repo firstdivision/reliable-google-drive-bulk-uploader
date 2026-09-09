@@ -41,7 +41,7 @@
   <p>The project has no advertising, analytics, data brokerage, or sale of user data. It does not share Google user data with third parties for advertising, surveillance, credit decisions, or training general-purpose AI models.</p>
 
   <h2>Storage and retention</h2>
-  <p>In the current Phase 1 test, OAuth access tokens, live file references, folder choice, resumable session URLs, and progress exist only in browser memory and are not intentionally persisted by the app. They are lost when the page is reloaded or closed. Google Drive retains files and folders you create according to your Google account settings and Google’s policies.</p>
+  <p>In the current Phase 1 and Phase 2 tests, OAuth access tokens, live file references, folder choice, resumable session URLs, queue metadata, selection identities, and progress exist only in browser memory and are not intentionally persisted by the app. They are lost when the page is reloaded or closed. Phase 2 releases its source references for completed files while keeping completion metadata in memory to avoid reuploading them in the same tab. Google Drive retains files and folders you create according to your Google account settings and Google’s policies.</p>
   <p>Future queue recovery may store limited upload metadata in your browser’s IndexedDB. This policy will be updated before that behavior is released.</p>
 
   <h2>Your choices and control</h2>
@@ -56,7 +56,7 @@
   <h2>Changes and contact</h2>
   <p>Material changes will be published on this page with a new effective date before the changed data use is introduced. Questions or requests can be submitted through the project’s <a href="https://github.com/firstdivision/reliable-google-drive-bulk-uploader/issues">public issue tracker</a>. Do not include access tokens, private filenames, or personal media in an issue.</p>
 
-  <nav><a href="../phase1/">Upload test</a> · <a href="../">Phase 0</a> · <a href="../terms/">Terms of Service</a> · <a href="https://github.com/firstdivision/reliable-google-drive-bulk-uploader">Source code</a></nav>
+  <nav><a href="../phase2/">Batch test</a> · <a href="../">Home</a> · <a href="../terms/">Terms of Service</a> · <a href="https://github.com/firstdivision/reliable-google-drive-bulk-uploader">Source code</a></nav>
 </main>
 </body>
 </html>

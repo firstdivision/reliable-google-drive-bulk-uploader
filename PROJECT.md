@@ -631,8 +631,13 @@ creates or lists app-accessible destination folders, reserves a stable Drive fil
 ID, and uploads one file in resumable 8 MiB chunks. It supports same-tab pause,
 confirmed-offset probing, bounded transient retries, reauthorization with account
 pinning, and session-expiration reconciliation. See the [Phase 1 test procedure](docs/phase-1-testing.md).
-Real Google Drive/iPhone interruption testing is pending. Tokens, live files,
-session URLs, and progress are deliberately not persisted in this spike.
+Real Google Drive/iPhone testing passed by user report on 2026-09-09: connection
+and test-folder creation, small-file upload and content/size verification,
+larger-video pause/resume with stable file identity, network interruption recovery,
+and one completed Drive file per test. See the [reported results](docs/phase-1-testing.md#reported-results-2026-09-09)
+for evidence limits. This clears the gate for Phase 2, not production or
+browser-restart reliability. Tokens, live files, session URLs, and progress are
+deliberately not persisted in this spike.
 
 Without React polish:
 
@@ -644,6 +649,29 @@ Without React polish:
 - resume from confirmed offset
 
 ### Phase 2 — Upload Engine
+
+Implementation status (2026-09-09): `phase2/upload-queue.mjs` coordinates the
+existing `DriveUpload` protocol with an in-memory queue, configurable concurrency
+(default two) and aligned chunk size (default 8 MiB), batch pause/resume,
+bounded protocol retries, Retry Failed, stable destination identities, and
+incremental confirmed-byte/state totals. Authorization failure pauses the entire
+batch; explicit same-account reconnection and resume retain each upload identity.
+Completed entries retain metadata for deduplication but release live source references.
+
+The separate static test page under `phase2/` supports Add More, metadata-based
+selection deduplication, removal of unstarted entries, aggregate progress, and
+50-row paginated failure/file details. Matching name, size, MIME type, and
+modification time is a heuristic, not proof of identical contents. Retry Failed
+also resumes paused work; ordinary Resume does not requeue permanent failures.
+The destination stays fixed once a batch starts. No operation deletes sources
+or existing Drive content. Empty files are explicitly skipped in this test.
+
+Decision: retain dependency-free JavaScript modules for this engine/test slice,
+reusing the real-device-tested Phase 1 protocol rather than combining this phase
+with a React/Vite migration. The intended full application stack remains
+React/TypeScript; engine logic stays independent of UI. IndexedDB/restart
+recovery remains Phase 3 and the full dashboard remains Phase 4. Real-iPhone
+batch and Android validation are pending; see the [Phase 2 test procedure](docs/phase-2-testing.md).
 
 Implement:
 

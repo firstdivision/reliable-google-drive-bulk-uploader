@@ -31,15 +31,19 @@ jobs:
           node --check phase1/app.mjs
           node --check phase1/google.mjs
           node --check phase1/drive-upload.mjs
+          node --check phase1/wake.js
+          node --check phase2/app.mjs
+          node --check phase2/upload-queue.mjs
           node --test tests/*.test.cjs
           node --test tests/*.test.mjs
       - uses: actions/configure-pages@v5
       - name: Assemble static site
         run: |
-          mkdir -p public/phase0 public/phase1 public/privacy public/terms public/assets/brand
+          mkdir -p public/phase0 public/phase1 public/phase2 public/privacy public/terms public/assets/brand
           cp site/* public/
           cp phase0/* public/phase0/
           cp phase1/* public/phase1/
+          cp phase2/* public/phase2/
           cp legal/privacy/* public/privacy/
           cp legal/terms/* public/terms/
           cp legal/style.css public/legal.css
