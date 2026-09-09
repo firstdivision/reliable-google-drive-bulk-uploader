@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; connect-src 'none'; base-uri 'none'; form-action 'none'">
+  <title>Phase 0 — Separate experiments</title>
+  <link rel="stylesheet" href="style.css">
+  <script src="experiments.js" defer></script>
+</head>
+<body>
+<main>
+  <h1>Separate experiments</h1>
+  <p><a href="index.html">Return to the metadata-only baseline</a></p>
+  <p>Run these after recording baseline results. No media or metadata is uploaded or saved. Results disappear on reload.</p>
+  <h2>File readability over time</h2>
+  <p>Selection may consume Safari storage. Use a small controlled sample. Each selection replaces the previous one.</p>
+  <label for="files">Select a test photo or video</label>
+  <input id="files" type="file" accept="image/*,video/*">
+  <p id="selection" role="status">No file selected.</p>
+  <button id="read" type="button" disabled>Read first 64 KiB now</button>
+  <button id="clear" type="button">Clear selection</button>
+  <p id="read-status" role="status">No contents read. A read happens only when you tap the button.</p>
+  <p>Repeat the read after waiting or switching apps. Success proves only that this slice was readable at that moment, not that the full file or a restarted page will work.</p>
+  <h2>☕ Keep Screen Awake</h2>
+  <button id="wake" type="button" aria-pressed="false">Enable Keep Awake</button>
+  <p id="wake-status" role="status">Checking support…</p>
+  <p>Keep this page open and the device plugged in. This does not enable background uploads. When enabled, the experiment requests a new lock on returning to the visible page.</p>
+  <p id="visibility" role="status"></p>
+</main>
+</body>
+</html>

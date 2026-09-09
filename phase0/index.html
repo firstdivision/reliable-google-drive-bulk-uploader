@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; connect-src 'none'; base-uri 'none'; form-action 'none'">
+  <title>Phase 0 — Photos picker baseline</title>
+  <link rel="stylesheet" href="style.css">
+  <script src="baseline.js" defer></script>
+</head>
+<body>
+<main>
+  <h1>Photos picker baseline</h1>
+  <p>Phase 0 feasibility test. This page displays metadata only. It does not read or upload your photos or videos.</p>
+  <p><strong>Start with a controlled 200–500 MB sample.</strong> Record Safari Documents &amp; Data in Settings before selecting. Selection itself may increase storage on affected devices. Stop if growth persists or storage is low.</p>
+  <label for="files">Select photos &amp; videos</label>
+  <input id="files" type="file" accept="image/*,video/*" multiple>
+  <p id="summary" role="status">No files selected.</p>
+  <p id="event" role="status">Waiting for the picker.</p>
+  <button id="clear" type="button">Clear selection</button>
+  <p>Each selection replaces the previous one. Clearing releases this page’s references; it does not guarantee Safari will reclaim storage.</p>
+  <details>
+    <summary>File metadata</summary>
+    <p>Up to 100 entries per page. Totals include every selected file.</p>
+    <ol id="metadata"></ol>
+    <button id="previous" type="button" disabled>Previous 100</button>
+    <button id="next" type="button" disabled>Next 100</button>
+    <p id="page" role="status"></p>
+  </details>
+  <p>Record results externally before closing this tab; this page does not save them.</p>
+  <p><a href="experiments.html">Separate readability and Keep Awake experiments</a> — run after the baseline test.</p>
+</main>
+</body>
+</html>

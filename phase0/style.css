@@ -1,0 +1,13 @@
+:root { color-scheme: light dark; font: 17px/1.5 system-ui, sans-serif; }
+body { margin: 0; }
+main { max-width: 44rem; margin: auto; padding: 1.25rem; }
+h1 { line-height: 1.2; }
+button, input { font: inherit; max-width: 100%; min-height: 48px; }
+button { padding: .6rem 1rem; margin: .25rem .25rem .25rem 0; }
+label { display: block; font-weight: 650; margin-bottom: .5rem; }
+input[type=file] { display: block; width: 100%; }
+input::file-selector-button { min-height: 48px; font: inherit; }
+summary { cursor: pointer; padding: .75rem 0; }
+li { overflow-wrap: anywhere; margin-bottom: .75rem; }
+a { color: light-dark(#174caf, #9cc3ff); }
+:focus-visible { outline: 3px solid #e28b00; outline-offset: 3px; }
