@@ -5,6 +5,8 @@
 The public application brand is **BatchHarbor**. “Google Drive” may be used to
 describe the supported destination, but it is not part of the application name.
 The project is independent and is not affiliated with or endorsed by Google.
+The public site uses the verified custom domain `batchharbor.killfly.com`; OAuth
+JavaScript origins and public policy URLs must use its HTTPS origin.
 
 ## Project Goal
 

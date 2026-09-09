@@ -21,16 +21,16 @@ python3 -m http.server 8000 --bind 127.0.0.1 --directory phase0
 
 Open `http://localhost:8000/`. This serves static files only; it is a development tool, not an application backend.
 
-The [BatchHarbor homepage](https://firstdivision.github.io/reliable-google-drive-bulk-uploader/) describes the application and links its public policies. GitHub Pages serves the Phase 0 harness under `/phase0/` and Phase 1 under `/phase1/`, all over HTTPS. The [Pages workflow](.github/workflows/pages.yml) checks both before publishing on pushes to `main`, or when manually dispatched. Plain HTTP over a LAN is not sufficient for the Wake Lock experiment.
+The [BatchHarbor homepage](https://batchharbor.killfly.com/) describes the application and links its public policies. GitHub Pages serves the Phase 0 harness under `/phase0/` and Phase 1 under `/phase1/`, all over HTTPS. The [Pages workflow](.github/workflows/pages.yml) checks both before publishing on pushes to `main`, or when manually dispatched. Plain HTTP over a LAN is not sufficient for the Wake Lock experiment.
 
-The [live Phase 1 Drive spike](https://firstdivision.github.io/reliable-google-drive-bulk-uploader/phase1/)
+The [live Phase 1 Drive spike](https://batchharbor.killfly.com/phase1/)
 is deployed alongside it. Follow the [Phase 1 test procedure](docs/phase-1-testing.md).
 The public OAuth client ID is frontend configuration; no client secret is used.
 
 OAuth consent-screen links:
 
-- [Privacy Policy](https://firstdivision.github.io/reliable-google-drive-bulk-uploader/privacy/)
-- [Terms of Service](https://firstdivision.github.io/reliable-google-drive-bulk-uploader/terms/)
+- [Privacy Policy](https://batchharbor.killfly.com/privacy/)
+- [Terms of Service](https://batchharbor.killfly.com/terms/)
 
 The original project logo is stored at `assets/brand/reliable-uploader-logo.png`.
 

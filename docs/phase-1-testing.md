@@ -2,12 +2,12 @@
 
 Status: implementation complete; real Google Drive testing pending.
 
-Open the [Phase 1 test page](https://firstdivision.github.io/reliable-google-drive-bulk-uploader/phase1/)
+Open the [Phase 1 test page](https://batchharbor.killfly.com/phase1/)
 in Safari. This spike uses the non-sensitive `drive.file` scope. It can create new
 files and work with folders created or explicitly authorized through this app; it
 cannot browse every existing folder in Drive. Google Picker integration is deferred.
 
-The OAuth client must allow the JavaScript origin `https://firstdivision.github.io`.
+The OAuth client must allow the JavaScript origin `https://batchharbor.killfly.com`.
 Enable the Drive API, configure the consent screen for external testing, and add
 the test account. No client secret is used or shipped.
 
