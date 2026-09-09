@@ -1,4 +1,4 @@
-# Reliable Google Drive Bulk Uploader
+# BatchHarbor
 
 A planned mobile-first, static web app for uploading large photo/video batches directly from the browser to Google Drive. Reliability, resumability, privacy, and clear aggregate progress are the priorities. There is no application backend.
 
@@ -21,7 +21,7 @@ python3 -m http.server 8000 --bind 127.0.0.1 --directory phase0
 
 Open `http://localhost:8000/`. This serves static files only; it is a development tool, not an application backend.
 
-For an iPhone/iPad, open the [live Phase 0 harness](https://firstdivision.github.io/reliable-google-drive-bulk-uploader/) in Safari. GitHub Pages serves the Phase 0 files at the site root and Phase 1 under `/phase1/`, all over HTTPS. The [Pages workflow](.github/workflows/pages.yml) checks both before publishing on pushes to `main`, or when manually dispatched. Plain HTTP over a LAN is not sufficient for the Wake Lock experiment.
+The [BatchHarbor homepage](https://firstdivision.github.io/reliable-google-drive-bulk-uploader/) describes the application and links its public policies. GitHub Pages serves the Phase 0 harness under `/phase0/` and Phase 1 under `/phase1/`, all over HTTPS. The [Pages workflow](.github/workflows/pages.yml) checks both before publishing on pushes to `main`, or when manually dispatched. Plain HTTP over a LAN is not sufficient for the Wake Lock experiment.
 
 The [live Phase 1 Drive spike](https://firstdivision.github.io/reliable-google-drive-bulk-uploader/phase1/)
 is deployed alongside it. Follow the [Phase 1 test procedure](docs/phase-1-testing.md).

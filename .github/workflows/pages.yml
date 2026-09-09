@@ -1,4 +1,4 @@
-name: Publish Phase 0 harness
+name: Publish BatchHarbor site
 
 on:
   push:
@@ -36,8 +36,9 @@ jobs:
       - uses: actions/configure-pages@v5
       - name: Assemble static site
         run: |
-          mkdir -p public/phase1 public/privacy public/terms public/assets/brand
-          cp phase0/* public/
+          mkdir -p public/phase0 public/phase1 public/privacy public/terms public/assets/brand
+          cp site/* public/
+          cp phase0/* public/phase0/
           cp phase1/* public/phase1/
           cp legal/privacy/* public/privacy/
           cp legal/terms/* public/terms/

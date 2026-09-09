@@ -2,6 +2,10 @@
 
 > **Canonical project specification.** This file records the product intent, architectural decisions, constraints, risks, and implementation phases. AI agents should read this before making architectural or product decisions. When implementation discoveries change an accepted decision, update this file in the same change.
 
+The public application brand is **BatchHarbor**. “Google Drive” may be used to
+describe the supported destination, but it is not part of the application name.
+The project is independent and is not affiliated with or endorsed by Google.
+
 ## Project Goal
 
 Build a **frontend-only web application**, ideally React/TypeScript, that lets users on phones and computers select a very large batch of photos and videos using the browser/OS-native picker and upload them **directly from the browser to a chosen Google Drive folder**.

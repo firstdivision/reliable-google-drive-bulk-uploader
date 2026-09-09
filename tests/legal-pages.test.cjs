@@ -4,6 +4,7 @@ const { readFileSync } = require('node:fs');
 
 const privacy = readFileSync('legal/privacy/index.html', 'utf8');
 const terms = readFileSync('legal/terms/index.html', 'utf8');
+const homepage = readFileSync('site/index.html', 'utf8');
 
 test('privacy policy discloses each current data flow and Limited Use compliance', () => {
   for (const disclosure of [
@@ -15,6 +16,14 @@ test('privacy policy discloses each current data flow and Limited Use compliance
     'never deletes source media',
   ]) assert.match(privacy, new RegExp(disclosure));
   assert.doesNotMatch(privacy, /client secret|refresh token/i);
+});
+
+test('homepage presents the independent BatchHarbor brand and policy links', () => {
+  assert.match(homepage, /<title>BatchHarbor/);
+  assert.match(homepage, /href="privacy\/"/);
+  assert.match(homepage, /href="terms\/"/);
+  assert.match(homepage, /not affiliated with or endorsed by Google/);
+  assert.doesNotMatch(homepage, /<script|<form|google-analytics|googletagmanager/i);
 });
 
 test('legal pages have no scripts, forms, analytics, or remote embedded content', () => {

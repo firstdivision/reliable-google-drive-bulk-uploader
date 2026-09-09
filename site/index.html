@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="BatchHarbor helps you upload large batches of photos and videos directly from your browser to your own cloud storage.">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'self'; img-src 'self'; base-uri 'none'; form-action 'none'">
+  <title>BatchHarbor — Reliable photo and video uploads</title>
+  <link rel="icon" type="image/png" href="assets/brand/reliable-uploader-logo.png">
+  <link rel="stylesheet" href="site.css">
+</head>
+<body>
+<main>
+  <header>
+    <a class="brand" href="./" aria-label="BatchHarbor home">
+      <img src="assets/brand/reliable-uploader-logo.png" alt="">
+      <span>BatchHarbor</span>
+    </a>
+    <nav aria-label="Site navigation"><a href="privacy/">Privacy</a><a href="terms/">Terms</a><a href="https://github.com/firstdivision/reliable-google-drive-bulk-uploader">Source</a></nav>
+  </header>
+
+  <section class="hero">
+    <p class="eyebrow">Reliable browser uploads</p>
+    <h1>Move large photo and video batches with confidence.</h1>
+    <p class="lead">BatchHarbor is an open-source, mobile-first uploader designed to send media directly from your device to a destination you choose in Google Drive.</p>
+    <div class="actions">
+      <a class="primary" href="phase1/">Try the upload test</a>
+      <a class="secondary" href="phase0/">View browser tests</a>
+    </div>
+    <p class="status"><strong>Current status:</strong> Phase 1 protocol testing. Start with a small disposable file. Batch queues and browser-restart recovery are not available yet.</p>
+  </section>
+
+  <section class="features" aria-label="Product principles">
+    <article><h2>Direct transfer</h2><p>Selected media goes from your browser to Google Drive over HTTPS. BatchHarbor has no upload server and does not receive a copy.</p></article>
+    <article><h2>Built for recovery</h2><p>Resumable uploads, confirmed-byte progress, stable file identities, pausing, and bounded retries are being tested before large-batch release.</p></article>
+    <article><h2>Mobile first</h2><p>The design prioritizes iPhone and iPad Safari while retaining standards-based support for Android and desktop browsers.</p></article>
+  </section>
+
+  <section class="how">
+    <h2>How the finished uploader is intended to work</h2>
+    <ol>
+      <li>Select photos and videos using your device’s native picker.</li>
+      <li>Connect your Google account and choose a destination folder.</li>
+      <li>Start the batch, keep the page visible, and watch aggregate progress.</li>
+      <li>Pause, resume, or retry failed files without restarting completed work.</li>
+    </ol>
+    <p>Browser wake locks help keep the screen on but do not provide native background execution. Current Safari lifecycle findings and test evidence are published in the <a href="https://github.com/firstdivision/reliable-google-drive-bulk-uploader">project repository</a>.</p>
+  </section>
+
+  <section class="data">
+    <h2>Your media stays on the path you chose</h2>
+    <p>BatchHarbor requests the narrow <code>drive.file</code> permission and uses Google Identity Services for authorization. It does not ask for your Google password, run advertising or analytics, or sell user data.</p>
+    <p><a href="privacy/">Read the Privacy Policy</a> to see exactly what the current test accesses and how it is handled.</p>
+  </section>
+
+  <footer>
+    <p>BatchHarbor is an independent open-source project. It is not affiliated with or endorsed by Google. Google Drive is a trademark of Google LLC.</p>
+    <p><a href="privacy/">Privacy Policy</a> · <a href="terms/">Terms of Service</a> · <a href="https://github.com/firstdivision/reliable-google-drive-bulk-uploader/issues">Contact</a></p>
+  </footer>
+</main>
+</body>
+</html>
