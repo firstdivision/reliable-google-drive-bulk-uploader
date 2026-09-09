@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'self'; img-src 'self'; base-uri 'none'; form-action 'none'">
+  <title>Privacy Policy — Reliable Google Drive Bulk Uploader</title>
+  <link rel="icon" type="image/png" href="../assets/brand/reliable-uploader-logo.png">
+  <link rel="stylesheet" href="../legal.css">
+</head>
+<body>
+<main>
+  <header>
+    <img src="../assets/brand/reliable-uploader-logo.png" alt="">
+    <div><strong>Reliable Google Drive Bulk Uploader</strong><br>Privacy Policy</div>
+  </header>
+  <h1>Privacy Policy</h1>
+  <p><strong>Effective date:</strong> September 9, 2026</p>
+  <p>Reliable Google Drive Bulk Uploader is a static, frontend-only web application. It helps you select photos and videos on your device and upload them directly from your browser to Google Drive. The project does not operate an application server that receives or stores your media.</p>
+
+  <h2>Information the app accesses</h2>
+  <p>When you choose to connect Google Drive, the app requests the limited <code>drive.file</code> permission. It accesses only the Google Drive files and folders that the app creates or that you explicitly make available to it. During the current test phase, the app may access:</p>
+  <ul>
+    <li>Your Google account display name, email address, and Drive permission ID, to show which account is connected and prevent an interrupted upload from resuming under a different account.</li>
+    <li>Names, IDs, and write capabilities of Drive folders available to the app, so you can choose a destination.</li>
+    <li>Files you explicitly select on your device, including their names, sizes, media types, modification dates, and bytes needed for upload.</li>
+    <li>Upload-session information and Google-confirmed progress needed to perform resumable uploads.</li>
+  </ul>
+  <p>The app does not request your Google password. Google handles authentication and consent.</p>
+
+  <h2>How information is used</h2>
+  <p>The app uses this information only to provide the visible functions you request: connect your account, create or choose a destination, upload selected files, display progress, and safely resume supported interruptions.</p>
+  <p>The use of information received from Google Workspace APIs adheres to the <a href="https://developers.google.com/terms/api-services-user-data-policy">Google API Services User Data Policy</a>, including its Limited Use requirements.</p>
+
+  <h2>Where information goes</h2>
+  <ul>
+    <li>Selected media bytes travel directly from your browser to Google Drive over HTTPS.</li>
+    <li>Google receives authorization, folder, file, and upload requests as needed to provide Google Drive service.</li>
+    <li>GitHub Pages serves the static website. Like other web hosts, GitHub may process ordinary request information such as an IP address and browser details under <a href="https://docs.github.com/en/site-policy/privacy-policies/github-general-privacy-statement">GitHub’s Privacy Statement</a>. Media bytes and Google API requests are not routed through GitHub Pages.</li>
+  </ul>
+  <p>The project has no advertising, analytics, data brokerage, or sale of user data. It does not share Google user data with third parties for advertising, surveillance, credit decisions, or training general-purpose AI models.</p>
+
+  <h2>Storage and retention</h2>
+  <p>In the current Phase 1 test, OAuth access tokens, live file references, folder choice, resumable session URLs, and progress exist only in browser memory and are not intentionally persisted by the app. They are lost when the page is reloaded or closed. Google Drive retains files and folders you create according to your Google account settings and Google’s policies.</p>
+  <p>Future queue recovery may store limited upload metadata in your browser’s IndexedDB. This policy will be updated before that behavior is released.</p>
+
+  <h2>Your choices and control</h2>
+  <p>You choose which local files to select, when to connect Google, the destination, and when to begin or pause an upload. You can delete uploaded files or test folders in Google Drive and revoke the app’s access from your <a href="https://myaccount.google.com/permissions">Google Account permissions</a>. The app never deletes source media or existing Drive content.</p>
+
+  <h2>Security and limitations</h2>
+  <p>The site uses HTTPS, a restrictive Content Security Policy, short-lived access tokens held in memory, and the narrow <code>drive.file</code> scope. No system is perfectly secure. Browser and operating-system behavior can affect selected-file access, page restoration, and long-running uploads; current limitations are documented in the project repository.</p>
+
+  <h2>Children</h2>
+  <p>This application is not directed to children under 13 and is not intended for use where parental consent is legally required.</p>
+
+  <h2>Changes and contact</h2>
+  <p>Material changes will be published on this page with a new effective date before the changed data use is introduced. Questions or requests can be submitted through the project’s <a href="https://github.com/firstdivision/reliable-google-drive-bulk-uploader/issues">public issue tracker</a>. Do not include access tokens, private filenames, or personal media in an issue.</p>
+
+  <nav><a href="../phase1/">Upload test</a> · <a href="../">Phase 0</a> · <a href="../terms/">Terms of Service</a> · <a href="https://github.com/firstdivision/reliable-google-drive-bulk-uploader">Source code</a></nav>
+</main>
+</body>
+</html>

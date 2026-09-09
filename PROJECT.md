@@ -761,6 +761,17 @@ Prefer plain modules/classes for the transfer engine rather than embedding netwo
 - never delete source iPhone photos
 - never delete/overwrite Drive files without explicit behavior and safeguards
 
+Published user-facing documents:
+
+- Privacy Policy: `legal/privacy/index.html`, deployed at `/privacy/`
+- Terms of Service: `legal/terms/index.html`, deployed at `/terms/`
+
+These documents must be updated before implementation changes how Google user data
+is accessed, used, stored, retained, or shared. The privacy policy explicitly
+states compliance with the Google API Services User Data Policy, including Limited
+Use requirements. The original project logo is at
+`assets/brand/reliable-uploader-logo.png`; it intentionally avoids Google brand marks.
+
 A useful privacy message in the UI:
 
 > Your photos and videos go directly from this device to Google Drive. This website does not upload or store copies on its own servers.

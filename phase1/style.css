@@ -2,6 +2,8 @@
 body { margin: 0; }
 main { max-width: 44rem; margin: auto; padding: 1.25rem; }
 h1, h2 { line-height: 1.2; }
+.brand { display: flex; align-items: center; gap: 1rem; }
+.brand img { width: 72px; height: 72px; object-fit: contain; flex: none; }
 h2 { font-size: 1.2rem; }
 section { margin: 1.5rem 0; border-top: 1px solid #888; padding-top: .5rem; }
 aside { border-left: 4px solid #b87b00; padding: .75rem; }
@@ -17,3 +19,4 @@ li { margin-bottom: .75rem; }
 a { color: light-dark(#174caf, #9cc3ff); }
 :focus-visible { outline: 3px solid #e28b00; outline-offset: 3px; }
 [hidden] { display: none; }
+@media (max-width: 380px) { .brand img { width: 56px; height: 56px; } }

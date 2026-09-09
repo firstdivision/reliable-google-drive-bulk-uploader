@@ -27,6 +27,13 @@ The [live Phase 1 Drive spike](https://firstdivision.github.io/reliable-google-d
 is deployed alongside it. Follow the [Phase 1 test procedure](docs/phase-1-testing.md).
 The public OAuth client ID is frontend configuration; no client secret is used.
 
+OAuth consent-screen links:
+
+- [Privacy Policy](https://firstdivision.github.io/reliable-google-drive-bulk-uploader/privacy/)
+- [Terms of Service](https://firstdivision.github.io/reliable-google-drive-bulk-uploader/terms/)
+
+The original project logo is stored at `assets/brand/reliable-uploader-logo.png`.
+
 Follow the [device test procedure](docs/phase-0-testing.md) and copy the [results template](docs/phase-0-results-template.md). Begin with a controlled 200–500 MB sample, not an entire library. Stop if storage growth persists or the device becomes unstable. The harness cannot measure Safari Documents & Data; record that manually in Settings.
 
 ## Checks
@@ -37,7 +44,8 @@ Requires Node.js 20+ for the dependency-free automated checks:
 node --check phase0/baseline.js
 node --check phase0/experiments.js
 node --check phase1/app.mjs
-node --test tests/*.test.*
+node --test tests/*.test.cjs
+node --test tests/*.test.mjs
 ```
 
 These use synthetic files and browser API doubles. They do not establish Safari picker, storage, or physical screen behavior. No TypeScript checker, linter, or production build is configured for this small plain-JavaScript harness; deploy its static files directly.

@@ -36,9 +36,13 @@ jobs:
       - uses: actions/configure-pages@v5
       - name: Assemble static site
         run: |
-          mkdir -p public/phase1
+          mkdir -p public/phase1 public/privacy public/terms public/assets/brand
           cp phase0/* public/
           cp phase1/* public/phase1/
+          cp legal/privacy/* public/privacy/
+          cp legal/terms/* public/terms/
+          cp legal/style.css public/legal.css
+          cp assets/brand/reliable-uploader-logo.png public/assets/brand/
       - uses: actions/upload-pages-artifact@v4
         with:
           path: public

@@ -6,6 +6,7 @@
   <meta name="referrer" content="strict-origin-when-cross-origin">
   <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' https://accounts.google.com/gsi/client; style-src 'self' https://accounts.google.com/gsi/style; connect-src https://www.googleapis.com https://accounts.google.com/gsi/; frame-src https://accounts.google.com/gsi/; img-src 'self' data:; base-uri 'none'; form-action 'none'">
   <title>Phase 1 — Google Drive upload test</title>
+  <link rel="icon" type="image/png" href="../assets/brand/reliable-uploader-logo.png">
   <link rel="stylesheet" href="style.css">
   <script src="https://accounts.google.com/gsi/client" async></script>
   <script src="wake.js" defer></script>
@@ -14,7 +15,7 @@
 <body>
 <main>
   <p><a href="../">Phase 0 tests</a> · Phase 1</p>
-  <h1>Test an upload to Google Drive</h1>
+  <header class="brand"><img src="../assets/brand/reliable-uploader-logo.png" alt=""><h1>Test an upload to Google Drive</h1></header>
   <p>One file at a time. Start with a small test photo, then try a larger video.</p>
   <aside><strong>Keep this tab open.</strong> This spike resumes within this tab only. Reloading or closing Safari loses upload state. Check the destination in Drive before attempting the same file again.</aside>
   <section aria-labelledby="connect-heading">
@@ -71,7 +72,7 @@
     </ol>
     <p>Do not use your whole library. This is an upload protocol test, not the finished batch uploader.</p>
   </details>
-  <p>Your selected media uploads directly from this device to Google Drive. Google handles authorization. The static website host receives page requests, not your media or selection metadata. No analytics or token storage is used.</p>
+  <p>Your selected media uploads directly from this device to Google Drive. Google handles authorization. The static website host receives page requests, not your media or selection metadata. No analytics or token storage is used. Read the <a href="../privacy/">Privacy Policy</a> and <a href="../terms/">Terms of Service</a>.</p>
   <noscript>This test requires JavaScript.</noscript>
 </main>
 </body>

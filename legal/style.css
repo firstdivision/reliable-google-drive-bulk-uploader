@@ -1,0 +1,10 @@
+:root { color-scheme: light dark; font: 17px/1.6 system-ui, sans-serif; }
+body { margin: 0; }
+main { max-width: 48rem; margin: auto; padding: 1.25rem; }
+header { display: flex; align-items: center; gap: 1rem; margin-bottom: 2rem; }
+header img { width: 64px; height: 64px; object-fit: contain; }
+h1, h2 { line-height: 1.25; }
+li { margin-bottom: .55rem; }
+a { color: light-dark(#174caf, #9cc3ff); }
+nav { margin-top: 2rem; padding-top: 1rem; border-top: 1px solid #888; }
+:focus-visible { outline: 3px solid #e28b00; outline-offset: 3px; }
