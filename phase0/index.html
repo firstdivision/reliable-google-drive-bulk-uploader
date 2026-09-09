@@ -13,6 +13,16 @@
   <h1>Photos picker baseline</h1>
   <p>Phase 0 feasibility test. This page displays metadata only. It does not read or upload your photos or videos.</p>
   <p><strong>Start with a controlled 200–500 MB sample.</strong> Record Safari Documents &amp; Data in Settings before selecting. Selection itself may increase storage on affected devices. Stop if growth persists or storage is low.</p>
+  <h2>Find Safari’s storage usage</h2>
+  <ol>
+    <li>Leave this tab open and switch to the iPhone’s <strong>Settings</strong> app.</li>
+    <li>Tap <strong>General → iPhone Storage</strong>. On an iPad, tap <strong>iPad Storage</strong>.</li>
+    <li>Wait for the storage figures and app list to finish loading. Scroll through the list and tap <strong>Safari</strong>. If it is not immediately visible, keep scrolling after the list has loaded.</li>
+    <li>Find <strong>Documents &amp; Data</strong> on Safari’s storage screen. Write down its value <strong>including MB or GB</strong> and the time, or take a screenshot. If the figure is still changing, wait and note that in your results.</li>
+    <li>Return to this tab and select your sample below. After selection finishes, follow the same Settings path and record the new value for comparison.</li>
+  </ol>
+  <p>Use the <strong>Documents &amp; Data</strong> figure, rather than App Size or the separate Safari → Advanced → Website Data list. Do not clear history or website data between measurements; that would change the baseline. If Documents &amp; Data is missing on your iOS version, record that and your version instead of substituting another figure.</p>
+  <p><a href="https://support.apple.com/en-us/108429" target="_blank" rel="noopener noreferrer">Apple’s guide to checking device storage</a>. This page cannot read the Settings storage measurement for you.</p>
   <label for="files">Select photos &amp; videos</label>
   <input id="files" type="file" accept="image/*,video/*" multiple>
   <p id="summary" role="status">No files selected.</p>
