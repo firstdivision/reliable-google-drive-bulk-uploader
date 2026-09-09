@@ -111,7 +111,8 @@ export class DriveUpload {
       return { status: response.status, headers: response.headers, data };
     } catch (error) {
       if (this.controller.signal.aborted) throw error;
-      throw new UploadError('Network request failed or timed out. Retrying from Google’s confirmed position.', { transient: true });
+      const detail = error?.name ? `${error.name}: ${error.message}` : String(error?.message || error);
+      throw new UploadError(`Network request failed or timed out (${detail}). Retrying from Google’s confirmed position.`, { transient: true });
     } finally {
       clearTimeout(timer);
       this.controller.signal.removeEventListener('abort', abort);
