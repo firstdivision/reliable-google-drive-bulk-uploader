@@ -116,6 +116,17 @@ export class DriveFolders {
     if (!response.ok) throw new Error(`Drive folder request failed (HTTP ${response.status}). Check access and retry.`);
     return response.json();
   }
+  async existsInFolder(folderId, name, { signal } = {}) {
+    if (typeof folderId !== 'string' || !/^[a-zA-Z0-9_-]+$/.test(folderId)) throw new Error('Google did not return a valid folder ID.');
+    if (typeof name !== 'string' || !name) throw new Error('Google did not return a valid file name.');
+    const escaped = name.replaceAll('\\', '\\\\').replaceAll("'", "\\'");
+    const params = new URLSearchParams({
+      q: `'${folderId}' in parents and trashed = false and name = '${escaped}'`,
+      spaces: 'drive', pageSize: '1', fields: 'files(id)', supportsAllDrives: 'true', includeItemsFromAllDrives: 'true',
+    });
+    const result = await this.checked(await this.request(`files?${params}`, { signal }));
+    return Array.isArray(result.files) && result.files.length > 0;
+  }
   async get(id, { signal } = {}) {
     if (typeof id !== 'string' || !/^[a-zA-Z0-9_-]+$/.test(id)) throw new Error('Google did not return a valid folder ID.');
     const folder = await this.checked(await this.request(`files/${encodeURIComponent(id)}?fields=id,name,mimeType,trashed,capabilities(canAddChildren)&supportsAllDrives=true`, { signal }));

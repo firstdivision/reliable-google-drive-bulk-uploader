@@ -34,15 +34,19 @@ function delay(ms, signal) {
 export class DriveUpload {
   constructor({ file, folderId, getToken, onChange = () => {}, fetchImpl = globalThis.fetch.bind(globalThis),
     chunkSize = 8 * 1024 * 1024, maxRetries = 5, requestTimeoutMs = 120000,
-    retryBaseMs = 1000, random = Math.random, checkpoint = async () => {}, recovery = null }) {
+    retryBaseMs = 1000, random = Math.random, checkpoint = async () => {}, recovery = null, name = null }) {
     if (!file || !Number.isSafeInteger(file.size) || file.size <= 0 || typeof file.slice !== 'function') {
       throw new UploadError('Select a nonempty file.');
     }
     if (!folderId || typeof getToken !== 'function' || !Number.isSafeInteger(chunkSize) || chunkSize < UNIT || chunkSize % UNIT) {
       throw new UploadError('Invalid destination or chunk configuration.');
     }
+    if (name !== null && (typeof name !== 'string' || !name)) {
+      throw new UploadError('Invalid destination file name.');
+    }
     Object.assign(this, { file, folderId, getToken, onChange, fetchImpl, chunkSize,
       maxRetries, requestTimeoutMs, retryBaseMs, random, checkpoint });
+    this.name = name || file.name;
     this.state = 'queued';
     this.confirmedBytes = 0;
     this.fileId = null;
@@ -175,7 +179,7 @@ export class DriveUpload {
         'Content-Type': 'application/json; charset=UTF-8',
         'X-Upload-Content-Type': this.file.type || 'application/octet-stream',
         'X-Upload-Content-Length': String(this.file.size),
-      }, body: JSON.stringify({ id: this.fileId, name: this.file.name,
+      }, body: JSON.stringify({ id: this.fileId, name: this.name,
         mimeType: this.file.type || 'application/octet-stream', parents: [this.folderId] }) });
       if (response.status === 409) {
         if (await this.reconcile()) return;

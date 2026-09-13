@@ -3,7 +3,8 @@ import { QueueStore } from '../phase2/queue-store.mjs';
 import { UploadQueue } from '../phase2/upload-queue.mjs';
 import type { FolderPicker } from './drive-picker';
 
-export type DashboardStatus = 'queued' | 'preparing' | 'uploading' | 'paused' | 'retrying' | 'failed' | 'completed';
+export type DashboardStatus = 'queued' | 'preparing' | 'uploading' | 'paused' | 'retrying' | 'failed' | 'skipped' | 'completed';
+export type DuplicateNamePolicy = 'upload' | 'skip' | 'increment';
 export interface DashboardItem {
   id: string;
   name: string;
@@ -51,6 +52,7 @@ export interface DashboardSnapshot {
   retentionMessage: string;
   folderId: string;
   folderName: string;
+  duplicatePolicy: DuplicateNamePolicy;
   destinationLocked: boolean;
   folders: DashboardFolder[];
   accountLabel: string;
@@ -74,6 +76,7 @@ export interface DashboardFolders {
   list(): Promise<DashboardFolder[]>;
   create(name: string): Promise<DashboardFolder>;
   get?(id: string, options?: { signal?: AbortSignal }): Promise<DashboardFolder>;
+  existsInFolder?(folderId: string, name: string, options?: { signal?: AbortSignal }): Promise<boolean>;
   resetPending?(): void;
 }
 export interface DashboardStore {
@@ -91,11 +94,13 @@ export interface DashboardQueue {
   readonly items: ReadonlyMap<string, DashboardQueueItem>;
   readonly accountId: string | null;
   readonly folderId: string | null;
+  readonly duplicatePolicy: DuplicateNamePolicy;
   readonly active: ReadonlySet<string>;
   readonly saving: Promise<unknown> | null;
   saveSnapshot: ((snapshot: unknown) => Promise<unknown>) | null;
   restore(snapshot: unknown): void;
   snapshot(): unknown;
+  setDuplicatePolicy(policy: DuplicateNamePolicy): void;
   add(files: File[]): { added: number; duplicates: number; rejected: number };
   reconnectSources(files: File[]): Promise<{ matched: number; skipped: number; unmatched: number; ambiguous: number; mismatched: number }>;
   start(folderId?: string): void;
@@ -109,6 +114,8 @@ export interface DashboardQueueOptions {
   getToken(): string;
   getAccountId(): string | null;
   onChange(): void;
+  duplicatePolicy?: DuplicateNamePolicy;
+  checkDriveNameExists?: (folderId: string, name: string, options?: { signal?: AbortSignal }) => Promise<boolean>;
 }
 export interface DashboardLockManager {
   request(name: string, options: { ifAvailable: true }, callback: (lock: object | null) => Promise<void>): Promise<unknown>;
@@ -209,6 +216,8 @@ export class DashboardController {
       getToken: () => this.auth.getToken(),
       getAccountId: () => this.auth.user?.permissionId ?? null,
       onChange: () => this.queueChanged(),
+      duplicatePolicy: 'upload',
+      checkDriveNameExists: this.foldersApi.existsInFolder ? (folderId, name, options) => this.foldersApi.existsInFolder!(folderId, name, options) : undefined,
     };
     this.createQueue = () => options.queueFactory ? options.queueFactory(queueOptions)
       : new (UploadQueue as unknown as new (options: DashboardQueueOptions) => DashboardQueue)(queueOptions);
@@ -239,6 +248,7 @@ export class DashboardController {
         ? this.startupProgress?.message || 'Opening saved queue...' : summary.saving ? 'Saving queue metadata on this device...'
           : 'Queue metadata saved on this device. Browser data clearing can still remove it.'),
       folderId, folderName: this.folders.find(folder => folder.id === folderId)?.name || (folderId ? 'Saved batch destination' : ''),
+      duplicatePolicy: this.queue.duplicatePolicy,
       destinationLocked: Boolean(this.queue.folderId),
       folders: this.folders.map(folder => ({ ...folder })), accountLabel: this.accountLabel,
       summary, wake: { ...this.wake }, online: this.navigator?.onLine !== false,
@@ -447,6 +457,17 @@ export class DashboardController {
       if (this.queue.folderId) throw new Error('Once started, this batch keeps the same destination.');
       if (id && !this.folders.some(folder => folder.id === id)) throw new Error('Choose an app-accessible destination folder.');
       this.folderId = id;
+    });
+  }
+
+  setDuplicatePolicy(policy: 'upload' | 'skip' | 'increment'): void {
+    this.action(() => {
+      this.requireConnected();
+      if (this.queue.folderId) throw new Error('Once started, this batch keeps the same destination.');
+      this.queue.setDuplicatePolicy(policy);
+      this.actionMessage = policy === 'upload' ? 'Drive name collisions will upload anyway.'
+        : policy === 'skip' ? 'Drive name collisions will be skipped.'
+          : 'Drive name collisions will use incremented filenames.';
     });
   }
 

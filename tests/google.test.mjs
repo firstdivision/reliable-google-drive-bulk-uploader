@@ -147,6 +147,16 @@ test('folder listing rejects incomplete searches and authorization failures', as
   assert.equal(auth.invalidated, true);
 });
 
+test('exact name lookup searches only the selected folder and escapes file names', async () => {
+  const calls = [];
+  const folders = new DriveFolders(stubAuth(), { fetchImpl: async url => { calls.push(new URL(url)); return json({ files: [] }); } });
+  assert.equal(await folders.existsInFolder('folder-1', "Sam's \"clip\".mp4"), false);
+  assert.equal(calls[0].searchParams.get('q'), "'folder-1' in parents and trashed = false and name = 'Sam\\'s \"clip\".mp4'");
+  assert.equal(calls[0].searchParams.get('pageSize'), '1');
+  assert.equal(calls[0].searchParams.get('supportsAllDrives'), 'true');
+  assert.equal(calls[0].searchParams.get('includeItemsFromAllDrives'), 'true');
+});
+
 test('lost folder create response retains ID and verifies 409 on retry', async () => {
   const calls = [];
   const folders = new DriveFolders(stubAuth(), { fetchImpl: async (url, options) => {

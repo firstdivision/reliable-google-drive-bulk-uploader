@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { dashboardState, TransferEstimate, formatRemaining, formatPercent } from '../phase4/dashboard-model.mjs';
 
 const summary = overrides => ({ total: 3, totalBytes: 3000, confirmedBytes: 1000, remaining: 2,
-  counts: { queued: 0, preparing: 0, uploading: 0, retrying: 0, paused: 2, failed: 0, completed: 1 },
+  counts: { queued: 0, preparing: 0, uploading: 0, retrying: 0, paused: 2, failed: 0, skipped: 0, completed: 1 },
   missingSources: 2, resumableSources: 0, retryableSources: 0, enabled: false, active: 0, authRequired: false, storageError: null, ...overrides });
 const view = overrides => dashboardState({ summary: summary(), ready: true, busy: false,
   connected: false, folderId: 'saved-folder', ...overrides });
@@ -56,7 +56,7 @@ test('ETA uses confirmed bytes and resets on pause, retry, rollback and Add More
   assert.equal(estimate.update(active({ confirmedBytes: 500 }), 11000), null);
   assert.equal(estimate.update(active({ totalBytes: 4000 }), 20000), null);
   assert.equal(estimate.update(summary(), 21000), null);
-  assert.equal(estimate.update(active({ counts: { retrying: 1 } }), 22000), null);
+  assert.equal(estimate.update(active({ counts: { ...summary().counts, retrying: 1 } }), 22000), null);
   assert.equal(formatRemaining(65), 'About 2 min remaining');
   assert.equal(formatRemaining(NaN), 'Calculating remaining time');
 });

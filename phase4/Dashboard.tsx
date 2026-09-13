@@ -10,6 +10,12 @@ const logo = new URL('../assets/brand/reliable-uploader-logo.png', import.meta.u
 type Props = { controller: DashboardController };
 type FilePickerProps = { id: string; label: string; disabled: boolean; onFiles(files: File[]): void; recovery?: boolean };
 
+const duplicatePolicies = [
+  { value: 'upload', label: 'Upload anyway', description: 'Always upload with the source filename, even if Drive already has a file with that name.' },
+  { value: 'skip', label: 'Skip', description: 'Leave files out when a matching name already exists in the destination folder.' },
+  { value: 'increment', label: 'Increment filename', description: 'Try filename_1, filename_2, and so on until the name is available.' },
+] as const;
+
 function FilePicker({ id, label, disabled, onFiles, recovery = false }: FilePickerProps) {
   const select = (event: ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(event.currentTarget.files || []);
@@ -56,6 +62,12 @@ export function Destination({ controller, state }: Props & { state: DashboardSna
       <div><span className="field-caption">Selected folder</span><strong>{state.folderName || 'Saved batch destination'}</strong></div>
       <a className="icon-button" aria-label="Open destination in Drive" title="Open destination in Drive" href={`https://drive.google.com/drive/folders/${encodeURIComponent(state.folderId)}`} target="_blank" rel="noopener noreferrer"><ArrowRight size={18} /></a>
     </div>}
+    <label className="setting-row"><span className="field-caption">If a file with the same name already exists</span>
+      <select value={state.duplicatePolicy} disabled={disabled} onChange={event => controller.setDuplicatePolicy(event.target.value as typeof state.duplicatePolicy)}>
+        {duplicatePolicies.map(policy => <option key={policy.value} value={policy.value}>{policy.label}</option>)}
+      </select>
+      <span className="small muted">{duplicatePolicies.find(policy => policy.value === state.duplicatePolicy)?.description}</span>
+    </label>
     {pinned && <p className="small muted">This batch's destination is fixed because uploading has started.</p>}
   </div>;
 }
@@ -63,13 +75,13 @@ export function Destination({ controller, state }: Props & { state: DashboardSna
 function FileDetails({ controller, state }: Props & { state: DashboardSnapshot }) {
   const [filter, setFilter] = useState('all');
   const [page, setPage] = useState(0);
-  const items = controller.getItems().filter(item => filter === 'failed' ? item.status === 'failed' : filter === 'sources' ? !item.hasSource && item.status !== 'completed' : true);
+  const items = controller.getItems().filter(item => filter === 'failed' ? item.status === 'failed' : filter === 'skipped' ? item.status === 'skipped' : filter === 'sources' ? !item.hasSource && item.status !== 'completed' : true);
   const pages = Math.max(1, Math.ceil(items.length / 50));
   const current = Math.min(page, pages - 1);
   return <div className="file-details">
     <div className="detail-toolbar"><label htmlFor="file-filter"><ListFilter size={17} aria-hidden="true" />Show</label>
       <select id="file-filter" value={filter} onChange={event => { setFilter(event.target.value); setPage(0); }}>
-        <option value="all">All files</option><option value="failed">Failed files</option><option value="sources">Sources needed</option>
+        <option value="all">All files</option><option value="failed">Failed files</option><option value="skipped">Skipped files</option><option value="sources">Sources needed</option>
       </select><span className="muted small">{items.length.toLocaleString()} files</span></div>
     <ul className="file-list">{items.slice(current * 50, current * 50 + 50).map(item => <li key={item.id}>
       <div className="file-info"><strong>{item.name}</strong><span>{formatBytes(item.size)} <span aria-hidden="true"> / </span>
@@ -196,7 +208,7 @@ export function Dashboard({ controller }: Props) {
       </section>
       {state.selectionMessage && (!summary.total || summary.missingSources > 0) && <p className="selection-message" role="status">{state.selectionMessage}</p>}
       {started && !state.resetProgress && <section className="progress-section" aria-labelledby="progress-heading">
-        <div className="progress-heading"><div><h2 id="progress-heading">{view.complete ? 'All files uploaded' : view.title}</h2><p>{summary.counts.completed.toLocaleString()} of {summary.total.toLocaleString()} files complete</p></div>
+        <div className="progress-heading"><div><h2 id="progress-heading">{view.complete ? 'Batch complete' : view.title}</h2><p>{summary.counts.completed.toLocaleString()} of {summary.total.toLocaleString()} files complete{summary.counts.skipped ? ` / ${summary.counts.skipped.toLocaleString()} skipped` : ''}</p></div>
           <strong className="percentage">{formatPercent(summary)}<span>%</span></strong></div>
         <progress value={summary.confirmedBytes} max={summary.totalBytes || 1} aria-label="Google-confirmed upload progress" />
         <div className="progress-meta"><span>{formatBytes(summary.confirmedBytes)} / {formatBytes(summary.totalBytes)}</span>
@@ -204,6 +216,7 @@ export function Dashboard({ controller }: Props) {
         <dl className="stats"><div><CheckCircle2 size={20} /><dd>{summary.counts.completed.toLocaleString()}</dd><dt>Completed</dt></div>
           <div><Upload size={20} /><dd>{(summary.counts.preparing + summary.counts.uploading + summary.counts.retrying).toLocaleString()}</dd><dt>Active</dt></div>
           <div><Clock size={20} /><dd>{(summary.counts.queued + summary.counts.paused).toLocaleString()}</dd><dt>Waiting</dt></div>
+          <div><ArrowRight size={20} /><dd>{summary.counts.skipped.toLocaleString()}</dd><dt>Skipped</dt></div>
           <div className={summary.counts.failed ? 'has-failures' : ''}><TriangleAlert size={20} /><dd>{summary.counts.failed.toLocaleString()}</dd><dt>Failed</dt></div></dl>
         {summary.enabled && <p className="small muted">{summary.counts.queued.toLocaleString()} queued{summary.counts.retrying ? ` / ${summary.counts.retrying} retrying` : ''}{estimate ? ` / ${formatBytes(estimate.bytesPerSecond)}/s` : ''}</p>}
         {view.complete && <div className="completion-note"><Check size={20} /><p>Verify your files in Drive before removing any originals from your device.</p></div>}

@@ -10,10 +10,10 @@ function render(overrides: Partial<DashboardSnapshot> = {}) {
     startupProgress: null, resetProgress: null,
     actionMessage: '', selectionMessage: '', storageMessage: 'Queue metadata saved', retentionMessage: '',
     folderId: 'saved-folder', folderName: 'Saved batch destination', destinationLocked: true,
-    folders: [], accountLabel: '', online: true,
+    folders: [], accountLabel: '', duplicatePolicy: 'upload', online: true,
     wake: { supported: true, enabled: false, active: false, message: 'Keep Awake is off.' },
     summary: { total: 5000, totalBytes: 50000, confirmedBytes: 10000, remaining: 4000,
-      counts: { queued: 0, preparing: 0, uploading: 0, retrying: 0, paused: 4000, failed: 0, completed: 1000 },
+      counts: { queued: 0, preparing: 0, uploading: 0, retrying: 0, paused: 4000, failed: 0, skipped: 0, completed: 1000 },
       missingSources: 4000, resumableSources: 0, retryableSources: 0, active: 0, enabled: false,
       authRequired: false, unstarted: 0, storageError: null, saving: false }, ...overrides };
   let detailsReads = 0;
@@ -130,7 +130,8 @@ test('destination view uses only account connection and Google Picker for folder
       assert.match(html, /Google account/);
       assert.match(html, connected ? /Choose Drive folder/ : /Connect Google first/);
       assert.match(html, /Open destination in Drive/);
-      assert.doesNotMatch(html, /<select|Refresh folders|New folder|Folder name/);
+      assert.match(html, /If a file with the same name already exists/);
+      assert.doesNotMatch(html, /Refresh folders|New folder|Folder name/);
       const browseButton = html.match(/<button\b[^>]*>[^]*?(Choose Drive folder|Connect Google first)<\/button>/)?.[0].split('</button>').at(-2);
       assert.ok(browseButton);
       assert.equal(browseButton.includes('disabled'), !connected || destinationLocked);
@@ -145,7 +146,7 @@ test('active main page retains checklist and exposes pause and retry without set
   const { state } = render();
   const { html } = render({ connected: true, summary: { ...state.summary, enabled: true, active: 3,
     missingSources: 0, retryableSources: 3,
-    counts: { queued: 3994, preparing: 0, uploading: 3, retrying: 0, paused: 0, completed: 1000, failed: 3 } } });
+    counts: { queued: 3994, preparing: 0, uploading: 3, retrying: 0, paused: 0, skipped: 0, completed: 1000, failed: 3 } } });
   assert.match(html, /Photos &amp; videos/);
   assert.match(html, /Destination folder/);
   assert.match(html, /Pause All/);

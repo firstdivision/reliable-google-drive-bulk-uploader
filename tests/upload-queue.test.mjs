@@ -21,7 +21,7 @@ function fixture(options = {}) {
   const workers = [];
   const queue = new UploadQueue({ getToken: () => 'token', createUpload: (config) => {
     const worker = { ...config, state: 'queued', confirmedBytes: 0, fileId: null,
-      error: null, starts: 0, running: false,
+      error: null, starts: 0, running: false, name: config.name,
       change(state) { this.state = state; this.onChange(this); },
       start() {
         assert.equal(this.running, false, 'one invocation per worker at a time');
@@ -176,6 +176,25 @@ test('source eligibility counters follow mixed recovery, retries, removal and co
   assert.equal(restored.queue.summary.retryableSources, 0);
   await restored.queue.reconnectSources([file('paused')]);
   assert.equal(restored.queue.summary.resumableSources, 1);
+});
+
+test('duplicate name policies can skip or increment filenames before upload starts', async () => {
+  const skipped = fixture({ duplicatePolicy: 'skip', checkDriveNameExists: async (_folderId, name) => name === 'skip.mp4' });
+  skipped.queue.add([file('skip.mp4')]);
+  skipped.queue.start('folder');
+  await waitFor(() => skipped.queue.summary.counts.skipped === 1 && !skipped.queue.active.size);
+  assert.equal(skipped.workers.length, 0);
+  assert.equal(skipped.queue.summary.remaining, 0);
+
+  const incremented = fixture({ duplicatePolicy: 'increment', checkDriveNameExists: async (_folderId, name) =>
+    name === 'clip.mp4' || name === 'clip_1.mp4' });
+  incremented.queue.add([file('clip.mp4')]);
+  incremented.queue.start('folder');
+  await waitFor(() => incremented.workers.length === 1 && incremented.workers[0].running);
+  assert.equal(incremented.workers[0].name, 'clip_2.mp4');
+  incremented.workers[0].settle('completed');
+  await tick();
+  assert.equal(incremented.queue.summary.counts.completed, 1);
 });
 
 test('invalid snapshots are rejected atomically without overwriting saved data', () => {

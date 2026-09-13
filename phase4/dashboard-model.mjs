@@ -35,6 +35,7 @@ export function dashboardState({ summary, ready, busy, connected, folderId, star
       storageError ? 'Saving needs attention' : summary.authRequired ? 'Reconnect Google' :
       enabled ? 'Uploading to Google Drive' : active ? 'Pausing uploads' : complete ? 'Batch complete' :
       missingSources ? 'Reconnect your originals' : counts.failed ? 'Some files need attention' :
+      counts.skipped ? 'Some files were skipped' :
       counts.paused ? 'Your batch is paused' : 'Ready to upload',
   };
 }

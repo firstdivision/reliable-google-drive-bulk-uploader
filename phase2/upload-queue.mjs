@@ -1,7 +1,8 @@
 import { DriveUpload, UploadError } from '../phase1/drive-upload.mjs';
 
-const STATES = ['queued', 'preparing', 'uploading', 'paused', 'retrying', 'failed', 'completed'];
+const STATES = ['queued', 'preparing', 'uploading', 'paused', 'retrying', 'failed', 'skipped', 'completed'];
 const UNIT = 256 * 1024;
+const DUPLICATE_POLICIES = ['upload', 'skip', 'increment'];
 
 // Metadata identity is a conservative selection heuristic, not a content hash.
 export function selectionKey(file) {
@@ -20,12 +21,16 @@ export async function sourceFingerprint(file) {
 export class UploadQueue {
   constructor({ getToken, onChange = () => {}, concurrency = 2, chunkSize = 8 * 1024 * 1024,
     uploadOptions = {}, createUpload = (options) => new DriveUpload(options),
-    saveSnapshot = null, getAccountId = () => null }) {
+    saveSnapshot = null, getAccountId = () => null, duplicatePolicy = 'upload', checkDriveNameExists = null }) {
     if (typeof getToken !== 'function' || !Number.isSafeInteger(concurrency) || concurrency < 1 ||
         !Number.isSafeInteger(chunkSize) || chunkSize < UNIT || chunkSize % UNIT) {
       throw new UploadError('Invalid queue concurrency or chunk configuration.');
     }
-    Object.assign(this, { getToken, onChange, concurrency, chunkSize, uploadOptions, createUpload, saveSnapshot, getAccountId });
+    if (!DUPLICATE_POLICIES.includes(duplicatePolicy) || (checkDriveNameExists !== null && typeof checkDriveNameExists !== 'function')) {
+      throw new UploadError('Invalid duplicate-file handling configuration.');
+    }
+    Object.assign(this, { getToken, onChange, concurrency, chunkSize, uploadOptions, createUpload, saveSnapshot,
+      getAccountId, duplicatePolicy, checkDriveNameExists });
     this.accountId = null;
     this.missingSources = 0;
     this.storageError = null;
@@ -46,6 +51,8 @@ export class UploadQueue {
     this.active = new Set();
     this.pending = [];
     this.pendingIds = new Set();
+    this.reservedNames = new Set();
+    this.nameChecks = new Map();
     this.head = 0;
     this.nextId = 1;
     this.scheduled = false;
@@ -53,7 +60,7 @@ export class UploadQueue {
 
   get summary() {
     return { total: this.items.size, totalBytes: this.totalBytes, confirmedBytes: this.confirmedBytes,
-      counts: { ...this.counts }, remaining: this.items.size - this.counts.completed,
+      counts: { ...this.counts }, remaining: this.items.size - this.counts.completed - this.counts.skipped,
       active: this.active.size, enabled: this.enabled, authRequired: this.authRequired,
       unstarted: this.unstarted, missingSources: this.missingSources, storageError: this.storageError,
       saving: Boolean(this.saving),
@@ -68,12 +75,66 @@ export class UploadQueue {
 
   snapshot() {
     return { version: 1, accountId: this.accountId, folderId: this.folderId,
+      duplicatePolicy: this.duplicatePolicy,
       items: [...this.items.values()].map(item => ({ id: item.id, name: item.name, size: item.size,
         type: item.type, lastModified: item.lastModified, status: item.status, attempted: item.attempted,
         confirmedBytes: item.confirmedBytes, driveFileId: item.driveFileId,
         sessionUrl: item.upload?.sessionUrl ?? item.sessionUrl ?? null, fingerprint: item.fingerprint ?? null,
+        resolvedName: item.resolvedName ?? null,
         error: item.error ? { message: item.error.auth ? 'Reconnect the original Google account.' : 'Upload failed. Review account access and retry.',
           auth: Boolean(item.error.auth), status: item.error.status || 0, transient: Boolean(item.error.transient) } : null })) };
+  }
+
+  setDuplicatePolicy(policy) {
+    if (!DUPLICATE_POLICIES.includes(policy)) throw new UploadError('Invalid duplicate-file handling configuration.');
+    if (this.folderId || this.enabled || this.active.size) throw new UploadError('Pause uploads before changing duplicate-file handling.');
+    this.duplicatePolicy = policy;
+    this.notify();
+  }
+
+  async checkNameExists(name) {
+    if (this.reservedNames.has(name)) return true;
+    if (!this.checkDriveNameExists || !this.folderId) return false;
+    if (!this.nameChecks.has(name)) {
+      this.nameChecks.set(name, Promise.resolve().then(() => this.checkDriveNameExists(this.folderId, name)));
+    }
+    const exists = await this.nameChecks.get(name);
+    if (!exists) this.nameChecks.set(name, Promise.resolve(false));
+    return exists;
+  }
+
+  incrementName(name, suffix) {
+    const dot = name.lastIndexOf('.');
+    const base = dot > 0 ? name.slice(0, dot) : name;
+    const extension = dot > 0 ? name.slice(dot) : '';
+    return `${base}_${suffix}${extension}`;
+  }
+
+  reserveName(name) {
+    this.reservedNames.add(name);
+  }
+
+  async resolveName(item) {
+    if (item.resolvedName) return item.resolvedName;
+    if (this.duplicatePolicy === 'upload' || !this.checkDriveNameExists || !this.folderId) {
+      item.resolvedName = item.name;
+      return item.resolvedName;
+    }
+    if (this.duplicatePolicy === 'skip') {
+      if (await this.checkNameExists(item.name)) return null;
+      item.resolvedName = item.name;
+      this.reserveName(item.resolvedName);
+      return item.resolvedName;
+    }
+    let suffix = 0;
+    let candidate = item.name;
+    while (await this.checkNameExists(candidate)) {
+      suffix += 1;
+      candidate = this.incrementName(item.name, suffix);
+    }
+    item.resolvedName = candidate;
+    this.reserveName(candidate);
+    return candidate;
   }
 
   async persist() {
@@ -110,7 +171,8 @@ export class UploadQueue {
     if (!snapshot || snapshot.version !== 1 || !Array.isArray(snapshot.items) ||
         (snapshot.accountId !== null && (typeof snapshot.accountId !== 'string' || !snapshot.accountId)) ||
         (snapshot.folderId !== null && (typeof snapshot.folderId !== 'string' || !/^[\w-]+$/.test(snapshot.folderId))) ||
-        (snapshot.folderId && !snapshot.accountId)) invalid();
+      (snapshot.folderId && !snapshot.accountId) ||
+      (snapshot.duplicatePolicy !== undefined && !DUPLICATE_POLICIES.includes(snapshot.duplicatePolicy))) invalid();
     const ids = new Set();
     const keys = new Set();
     const driveIds = new Set();
@@ -126,12 +188,15 @@ export class UploadQueue {
           !STATES.includes(saved.status) || typeof saved.attempted !== 'boolean' ||
           (saved.fingerprint !== null && (typeof saved.fingerprint !== 'string' || !/^[a-f0-9]{64}$/.test(saved.fingerprint))) ||
           (saved.attempted && !snapshot.folderId) ||
-          (saved.driveFileId !== null && (typeof saved.driveFileId !== 'string' || !/^[\w-]+$/.test(saved.driveFileId))) ||
+          (saved.driveFileId != null && (typeof saved.driveFileId !== 'string' || !/^[\w-]+$/.test(saved.driveFileId))) ||
           (saved.driveFileId && (!saved.attempted || !saved.fingerprint)) ||
           (saved.confirmedBytes && !saved.driveFileId) ||
-          (saved.sessionUrl !== null && typeof saved.sessionUrl !== 'string') ||
+          (saved.sessionUrl != null && typeof saved.sessionUrl !== 'string') ||
+          (saved.resolvedName != null && typeof saved.resolvedName !== 'string') ||
+          (saved.status === 'skipped' && !saved.attempted) ||
+          (saved.status === 'skipped' && (saved.confirmedBytes !== 0 || saved.driveFileId !== null || saved.sessionUrl !== null)) ||
           (saved.status === 'completed' && (!saved.driveFileId || saved.confirmedBytes !== saved.size)) ||
-          (saved.error !== null && (typeof saved.error?.message !== 'string' || typeof saved.error.auth !== 'boolean' ||
+          (saved.error != null && (typeof saved.error?.message !== 'string' || typeof saved.error.auth !== 'boolean' ||
             typeof saved.error.transient !== 'boolean' || !Number.isInteger(saved.error.status)))) invalid();
       total += saved.size;
       if (!Number.isSafeInteger(total)) invalid();
@@ -149,11 +214,13 @@ export class UploadQueue {
       return { id: saved.id, key, name: saved.name, size: saved.size, type: saved.type,
         lastModified: saved.lastModified, attempted: saved.attempted, confirmedBytes: saved.confirmedBytes,
         driveFileId: saved.driveFileId, sessionUrl: saved.sessionUrl, fingerprint: saved.fingerprint,
+        resolvedName: saved.resolvedName ?? null,
         error: saved.error ? new UploadError(saved.error.message, saved.error) : null,
-        status: ['completed', 'failed'].includes(saved.status) ? saved.status : 'paused', file: null, upload: null };
+        status: ['completed', 'failed', 'skipped'].includes(saved.status) ? saved.status : 'paused', file: null, upload: null };
     });
     this.accountId = snapshot.accountId;
     this.folderId = snapshot.folderId;
+    this.duplicatePolicy = snapshot.duplicatePolicy || 'upload';
     for (const item of restored) {
       this.items.set(item.id, item);
       this.keys.set(item.key, item.id);
@@ -161,7 +228,8 @@ export class UploadQueue {
       this.totalBytes += item.size;
       this.confirmedBytes += item.confirmedBytes;
       if (!item.attempted) this.unstarted++;
-      if (item.status !== 'completed') this.missingSources++;
+      if (!['completed', 'skipped'].includes(item.status)) this.missingSources++;
+      if (item.resolvedName) this.reservedNames.add(item.resolvedName);
       this.nextId = Math.max(this.nextId, Number(item.id) + 1);
     }
     this.onChange(this);
@@ -232,7 +300,7 @@ export class UploadQueue {
       if (this.keys.has(key)) { result.duplicates++; continue; }
       const item = { id: String(this.nextId++), key, file, name: file.name, size: file.size,
         type: file.type || '', lastModified: file.lastModified || 0, status: 'queued',
-        confirmedBytes: 0, driveFileId: null, error: null, upload: null, attempted: false };
+        confirmedBytes: 0, driveFileId: null, error: null, upload: null, attempted: false, resolvedName: null };
       this.items.set(item.id, item);
       this.keys.set(key, item.id);
       this.counts.queued++;
@@ -355,8 +423,13 @@ export class UploadQueue {
       void Promise.resolve().then(async () => {
         if (this.saveSnapshot && !item.fingerprint) item.fingerprint = await sourceFingerprint(item.file);
         if (this.enabled && !this.authRequired) {
+          const resolvedName = await this.resolveName(item);
+          if (!resolvedName) {
+            this.update(item, 'skipped', 0, null);
+            return;
+          }
           item.upload ||= this.createUpload({ ...this.uploadOptions, file: item.file,
-            folderId: this.folderId, getToken: this.getToken, chunkSize: this.chunkSize,
+            name: resolvedName, folderId: this.folderId, getToken: this.getToken, chunkSize: this.chunkSize,
             recovery: { fileId: item.driveFileId, sessionUrl: item.sessionUrl || null, confirmedBytes: item.confirmedBytes },
             checkpoint: async upload => {
               item.driveFileId = upload.fileId;
@@ -371,9 +444,9 @@ export class UploadQueue {
         if (error.auth) { this.authRequired = true; this.pause(); }
       }).finally(() => {
         this.active.delete(id);
-        if (item.status === 'completed') {
+        if (item.status === 'completed' || item.status === 'skipped') {
           // Keep the completion/selection identity, not large live source references.
-          if (item.file) this.sourceCounts.completed--;
+          if (item.file) this.sourceCounts[item.status]--;
           item.file = null;
           item.upload = null;
         } else if (this.enabled && !this.authRequired &&
