@@ -37,15 +37,19 @@ export function Destination({ controller, state }: Props & { state: DashboardSna
   const [browsing, setBrowsing] = useState(false);
   const pinned = state.destinationLocked;
   const disabled = !state.ready || state.busy || !state.connected || pinned;
+  const browseLabel = state.connected ? 'Choose Drive folder' : 'Connect Google first';
   return <div className="destination-fields">
     <div className="account-row"><div><span className="field-caption">Google account</span>
       <strong>{state.connected ? state.accountLabel : 'Not connected'}</strong></div>
       <button className="button secondary" disabled={!state.ready || state.busy || state.summary.active > 0 || state.summary.enabled}
         onClick={() => void controller.connect()}><Link2 size={17} aria-hidden="true" />{state.connected ? 'Reconnect' : 'Connect Google'}</button></div>
-    <button className="button secondary" disabled={disabled} onClick={() => {
-      setBrowsing(true);
-      void controller.browseFolders().finally(() => setBrowsing(false));
-    }}><Folder size={18} />Browse Google Drive</button>
+    <div className={`destination-action ${state.connected ? 'destination-action-ready' : ''}`}>
+      <p className="small muted">{state.connected ? 'Next step: pick the folder that will receive this batch.' : 'Connect Google, then choose where uploads should go.'}</p>
+      <button className={`button ${state.connected ? 'primary' : 'secondary'}`} disabled={disabled} onClick={() => {
+        setBrowsing(true);
+        void controller.browseFolders().finally(() => setBrowsing(false));
+      }}><Folder size={18} />{browseLabel}</button>
+    </div>
     {browsing && <div role="status"><p className="small">Opening Google Drive folder selection...</p>
       <button className="text-button" onClick={() => controller.cancelFolderBrowse()}>Cancel folder selection</button></div>}
     {state.folderId && <div className="destination-summary"><Folder size={24} aria-hidden="true" />

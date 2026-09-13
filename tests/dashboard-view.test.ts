@@ -128,12 +128,15 @@ test('destination view uses only account connection and Google Picker for folder
       const { state, controller } = render({ connected, destinationLocked });
       const html = renderToStaticMarkup(createElement(Destination, { controller, state }));
       assert.match(html, /Google account/);
-      assert.match(html, /Browse Google Drive/);
+      assert.match(html, connected ? /Choose Drive folder/ : /Connect Google first/);
       assert.match(html, /Open destination in Drive/);
       assert.doesNotMatch(html, /<select|Refresh folders|New folder|Folder name/);
-      const browseButton = html.match(/<button\b[^>]*>[^]*?Browse Google Drive<\/button>/)?.[0].split('</button>').at(-2);
+      const browseButton = html.match(/<button\b[^>]*>[^]*?(Choose Drive folder|Connect Google first)<\/button>/)?.[0].split('</button>').at(-2);
       assert.ok(browseButton);
       assert.equal(browseButton.includes('disabled'), !connected || destinationLocked);
+      if (connected) {
+        assert.match(html, /destination-action-ready/);
+      }
     }
   }
 });

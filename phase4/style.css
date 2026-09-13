@@ -65,6 +65,11 @@ main { max-width: 680px; margin: auto; padding: 24px 28px 20px; }
 .account-row strong { display: block; font-size: 14px; overflow-wrap: anywhere; }
 .field-caption { font-size: 12px; color: var(--muted); display: block; margin-bottom: 5px; }
 .destination-fields > .button { margin-bottom: 18px; }
+.destination-action { display: grid; gap: 10px; margin-bottom: 18px; }
+.destination-action p { margin: 0; }
+.destination-action .button { width: 100%; min-height: 56px; font-size: 16px; }
+.destination-action-ready { background: linear-gradient(180deg, #eef5ff 0, #ffffff 100%); border: 1px solid #cbdcf5; border-radius: 10px; padding: 14px; }
+.destination-action-ready p { color: #47627f; }
 label:not(.file-picker) { font-size: 13px; font-weight: 600; }
 select, input:not([type=file]) { background: white; border: 1px solid #becfc4; border-radius: 6px; padding: 10px 12px; color: var(--ink); width: 100%; min-width: 0; }
 .notice, .recovery-panel { background: #fcf3df; border-top: 2px solid #d0a13e; border-bottom: 1px solid #e4d6b5; padding: 20px; margin-bottom: 25px; }
@@ -165,6 +170,7 @@ footer nav a { display: inline-flex; align-items: center; min-height: 44px; }
   .wake-strip { padding: 14px; gap: 10px; }
   .account-row { flex-wrap: wrap; }
   .account-row .button { margin-left: auto; }
+  .destination-action-ready { padding: 12px; }
   footer { flex-wrap: wrap; gap: 6px 15px; padding-top: 18px; }
 }
 @media (max-width: 350px) {
