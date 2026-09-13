@@ -7,6 +7,7 @@ import type { DashboardController, DashboardSnapshot } from '../phase4/controlle
 
 function render(overrides: Partial<DashboardSnapshot> = {}) {
   const state: DashboardSnapshot = { ready: true, busy: false, connected: false, startupError: '',
+    startupProgress: null,
     actionMessage: '', selectionMessage: '', storageMessage: 'Queue metadata saved', retentionMessage: '',
     folderId: 'saved-folder', folderName: 'Saved batch destination', destinationLocked: true,
     folders: [], accountLabel: '', online: true,
@@ -50,6 +51,25 @@ test('startup failure and offline status are visible without private HTML inject
   const { state, controller } = render({ ready: false, busy: true });
   const settings = renderToStaticMarkup(createElement(NewBatchControl, { controller, state }));
   assert.match(settings, /<button class="button secondary" disabled="">.*?Start new batch/);
+});
+
+test('startup shows the current stage and elapsed time without fake percentages or a warning panel', () => {
+  const { state } = render();
+  const summary = { ...state.summary, total: 0, missingSources: 0 };
+  for (const elapsedSeconds of [0, 6]) {
+    const { html } = render({ ready: false, busy: true, summary,
+      startupProgress: { message: 'Reading saved file records and upload progress...', elapsedSeconds } });
+    assert.match(html, /aria-label="Opening batch progress"/);
+    assert.match(html, /role="status" aria-atomic="true"/);
+    assert.match(html, /Reading saved file records and upload progress/);
+    assert.match(html, new RegExp(`role="timer" aria-live="off">${elapsedSeconds} seconds elapsed`));
+    assert.match(html, /No photos or videos are being uploaded/);
+    assert.equal(html.includes('Still waiting for the browser'), elapsedSeconds >= 5);
+    assert.doesNotMatch(html, /recovery-panel|Opening saved batch\.\.\.|aria-valuenow/);
+  }
+  assert.doesNotMatch(render().html, /startup-progress|seconds elapsed/);
+  assert.doesNotMatch(render({ ready: false, startupError: 'Storage failed.',
+    startupProgress: { message: 'Stale stage', elapsedSeconds: 15 } }).html, /startup-progress|Stale stage/);
 });
 
 test('wake control distinguishes requested state from actual acquisition', () => {

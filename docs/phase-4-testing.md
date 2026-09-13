@@ -47,6 +47,16 @@ rolls back uncommitted changes. Another tab's lock or unavailable storage cannot
 Late responses cannot revive the failed controller. This bounds the UI wait; it
 does not establish or repair the underlying Safari failure without device evidence.
 
+Startup now displays the current operation (tab lock, storage opening, saved-record
+read, or validation/restoration), an activity indicator, and elapsed seconds. After
+five seconds it also acknowledges the wait. Confirmed recovery reset reports saving
+the new empty batch. This is local metadata work, not a Drive scan or media upload.
+The saved snapshot is read in one IndexedDB operation, so no byte/file percentage is
+available; the UI does not invent one. Stage changes are announced politely; elapsed
+seconds are not announced every second, and reduced-motion preferences stop the
+spinner. Updates and the existing deadline require the browser's event loop to run;
+this change neither speeds up storage nor diagnoses the unresolved phone stall.
+
 The user rejected reconstructing large source selections as a normal recovery
 workflow and explicitly chose to retain the browser-only app. The primary
 acceptance workflow keeps the page open and active through completion. Existing
@@ -110,7 +120,8 @@ sources for those checks.
 9. Verify exactly one completed Drive file per entry, correct sizes and contents,
    and record any Safari storage growth or instability. Keep the originals.
 10. If startup stalls, keep the page visible for at least 15 seconds. Record the
-   exact error stage and loaded revision. Close other uploader tabs and use
+   visible operation, advancing elapsed time, exact error stage, and loaded revision.
+   Check that the activity indicator respects reduced motion. Close other uploader tabs and use
    **Reload saved batch**. Do not clear website data just to collect this evidence.
 11. With a disposable loaded batch and uploads paused, open **Settings > Start new batch**.
    Check the counts and warning. Cancel must retain the batch; reopening must

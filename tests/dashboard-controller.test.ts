@@ -260,6 +260,54 @@ test('initialization is idempotent, snapshots are cached, progress coalesces wit
   await controller.dispose();
 });
 
+test('startup publishes actual stages and elapsed time without reading or uploading media', async () => {
+  const opening = deferred();
+  const reading = deferred();
+  const locking = deferred();
+  const store = new TestStore();
+  store.openGate = opening.promise;
+  store.loadGate = reading.promise;
+  store.saved = await restoredSnapshot();
+  const locks = new TestLocks();
+  const harness = fixture({ store, lockManager: {
+    async request(...args: Parameters<TestLocks['request']>) {
+      await locking.promise;
+      return locks.request(...args);
+    },
+  } });
+  const messages: string[] = [];
+  const unsubscribe = harness.controller.subscribe(() => {
+    const progress = harness.snapshot().startupProgress;
+    if (progress) messages.push(progress.message);
+  });
+  try {
+    const initializing = harness.controller.initialize();
+    assert.match(harness.snapshot().startupProgress!.message, /another tab/);
+    locking.resolve();
+    await harness.waitSnapshot(snapshot => Boolean(snapshot.startupProgress?.message.includes('Opening saved storage')));
+    assert.equal(store.loaded, 0);
+    opening.resolve();
+    await harness.waitSnapshot(snapshot => Boolean(snapshot.startupProgress?.message.includes('Reading saved file records')));
+    await harness.waitSnapshot(snapshot => (snapshot.startupProgress?.elapsedSeconds ?? 0) >= 1);
+    assert.equal(harness.snapshot().ready, false);
+    assert.equal(harness.snapshot().storageMessage, harness.snapshot().startupProgress!.message);
+    reading.resolve();
+    await initializing;
+    assert.ok(messages.some(message => message.includes('Checking saved records')));
+    assert.equal(harness.snapshot().startupProgress, null);
+    assert.equal(harness.snapshot().ready, true);
+    assert.equal(harness.snapshot().summary.total, 2);
+    assert.equal(harness.workers.length, 0);
+    assert.equal(store.saves.length, 0);
+  } finally {
+    locking.resolve();
+    opening.resolve();
+    reading.resolve();
+    unsubscribe();
+    await harness.controller.dispose();
+  }
+});
+
 test('startup deadlines identify stalled stages and ignore late successful responses', async () => {
   for (const stage of ['lock', 'open', 'load'] as const) {
     const gate = deferred();
@@ -278,6 +326,7 @@ test('startup deadlines identify stalled stages and ignore late successful respo
     await harness.controller.initialize();
     const expected = { lock: 'acquiring the batch tab lock', open: 'opening browser queue storage', load: 'reading the saved batch' };
     assert.match(harness.snapshot().startupError, new RegExp(expected[stage]));
+    assert.equal(harness.snapshot().startupProgress, null);
     assert.equal(harness.snapshot().ready, false);
     harness.controller.select([file()]);
     harness.controller.start();

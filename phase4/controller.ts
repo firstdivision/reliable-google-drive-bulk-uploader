@@ -43,6 +43,7 @@ export interface DashboardSnapshot {
   busy: boolean;
   connected: boolean;
   startupError: string;
+  startupProgress: { message: string; elapsedSeconds: number } | null;
   actionMessage: string;
   selectionMessage: string;
   storageMessage: string;
@@ -166,6 +167,7 @@ export class DashboardController {
   private connected = false;
   private lastAuthRequired = false;
   private startupError = '';
+  private startupProgress: DashboardSnapshot['startupProgress'] = { message: 'Waiting to open this batch...', elapsedSeconds: 0 };
   private actionMessage = '';
   private selectionMessage = '';
   private retentionMessage = '';
@@ -226,9 +228,10 @@ export class DashboardController {
     return {
       ready: this.ready, busy: this.busy, connected: this.connected,
       startupError: this.startupError, actionMessage: this.actionMessage,
+      startupProgress: this.startupProgress ? { ...this.startupProgress } : null,
       selectionMessage: this.selectionMessage, retentionMessage: this.retentionMessage,
       storageMessage: this.startupError || (summary.storageError ? summary.storageError.message : !this.ready
-        ? 'Opening saved queue...' : summary.saving ? 'Saving queue metadata on this device...'
+        ? this.startupProgress?.message || 'Opening saved queue...' : summary.saving ? 'Saving queue metadata on this device...'
           : 'Queue metadata saved on this device. Browser data clearing can still remove it.'),
       folderId, folderName: this.folders.find(folder => folder.id === folderId)?.name || (folderId ? 'Saved batch destination' : ''),
       destinationLocked: Boolean(this.queue.folderId),
@@ -278,33 +281,46 @@ export class DashboardController {
     this.initialization = new Promise(resolve => { initialized = resolve; });
     const held = new Promise<void>(resolve => { this.releaseWriter = resolve; });
     let stage = 'acquiring the batch tab lock';
+    const startedAt = performance.now();
+    this.startupProgress = { message: 'Checking that this batch is not open in another tab...', elapsedSeconds: 0 };
+    const updateStage = (nextStage: string, message: string) => {
+      stage = nextStage;
+      this.startupProgress = { message, elapsedSeconds: Math.floor((performance.now() - startedAt) / 1000) };
+      this.emit();
+    };
+    const activity = setInterval(() => {
+      if (!this.startupProgress || this.disposed || this.startupStopped) return;
+      this.startupProgress = { ...this.startupProgress, elapsedSeconds: Math.floor((performance.now() - startedAt) / 1000) };
+      this.emit();
+    }, 1000);
     const deadline = setTimeout(() => {
       this.startupFailed(new Error(`Startup timed out while ${stage}. Close other BatchHarbor tabs, then reload. If it repeats, report this stage; do not clear website data to retry.`), discardSaved);
     }, this.startupTimeoutMs);
-    this.finishStartup = () => { clearTimeout(deadline); initialized(); };
+    this.finishStartup = () => { clearTimeout(deadline); clearInterval(activity); initialized(); };
     try {
       if (!this.locks?.request) throw new Error('This browser cannot safely lock the saved queue. Use a current browser over HTTPS.');
       this.lockTask = this.locks.request('batchharbor-queue-writer', { ifAvailable: true }, async lock => {
         if (this.disposed || this.startupStopped) return;
         if (!lock) throw new Error('This batch is open in another tab. Close that tab, then reload this page.');
-        stage = 'opening browser queue storage';
+        updateStage('opening browser queue storage', 'Opening saved storage on this device...');
         await Promise.race([this.store.open(), held]);
         if (this.disposed || this.startupStopped) return;
         if (discardSaved) {
-          stage = 'saving the new batch';
+          updateStage('saving the new batch', 'Saving the new empty batch on this device...');
           const next = this.createQueue();
           await Promise.race([this.trackWrite(this.store.save(next.snapshot())), held]);
           if (this.disposed || this.startupStopped) return;
           this.installNewBatch(next);
         } else {
-          stage = 'reading the saved batch';
+          updateStage('reading the saved batch', 'Reading saved file records and upload progress...');
           const saved = await Promise.race([this.store.load(), held]);
           if (this.disposed || this.startupStopped) return;
-          stage = 'validating the saved batch';
+          updateStage('validating the saved batch', 'Checking saved records and restoring the batch...');
           if (saved !== null) this.queue.restore(saved);
         }
         this.queue.saveSnapshot = snapshot => this.store.save(snapshot);
         this.startupError = '';
+        this.startupProgress = null;
         this.ready = true;
         this.busy = discardSaved;
         this.emit();
@@ -322,6 +338,7 @@ export class DashboardController {
     if (this.disposed || this.startupStopped) return;
     this.startupStopped = true;
     this.finishStartup?.();
+    this.startupProgress = null;
     this.store.close({ abortPending: true });
     this.releaseWriter?.();
     this.startupError = `${messageOf(error)} ${discardSaved

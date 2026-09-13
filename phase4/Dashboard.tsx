@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, useSyncExternalStore, type ChangeEvent } from 'react';
 import { ArrowDownToLine, ArrowLeft, ArrowRight, Check, CheckCircle2, ChevronDown, ChevronRight, Clock, Coffee, Folder,
-  FolderPlus, ImagePlus, Link2, ListFilter, Pause, Play, RefreshCw, RotateCcw, Settings,
+  FolderPlus, ImagePlus, Link2, ListFilter, LoaderCircle, Pause, Play, RefreshCw, RotateCcw, Settings,
   ShieldCheck, TriangleAlert, Trash2, Upload, WifiOff } from 'lucide-react';
 import type { DashboardController, DashboardSnapshot } from './controller';
 import { dashboardState, formatBytes, formatPercent, formatRemaining, TransferEstimate } from './dashboard-model.mjs';
@@ -131,7 +131,7 @@ export function Dashboard({ controller }: Props) {
   const started = summary.total > 0 && (state.destinationLocked || summary.missingSources > 0);
   const sourceDisabled = !state.ready || state.busy || summary.enabled || summary.active > 0 || Boolean(summary.storageError);
   const selectionDisabled = !state.ready || state.busy || summary.missingSources > 0 || Boolean(summary.storageError);
-  const blockers = view.blockers.filter(item => item.kind !== 'folder' && (item.kind !== 'account' || started));
+  const blockers = view.blockers.filter(item => item.kind !== 'loading' && item.kind !== 'folder' && (item.kind !== 'account' || started));
   const filesReady = summary.total > 0 && !summary.missingSources;
   const destinationReady = state.connected && Boolean(state.folderId);
   return <div className="app-shell">
@@ -141,6 +141,13 @@ export function Dashboard({ controller }: Props) {
     <main>
       {page !== '#batch' && <a className="back-link" href="#batch"><ArrowLeft size={19} />Back to batch</a>}
       <div className="page-heading"><h1 ref={heading} tabIndex={-1}>{page === '#destination' ? 'Destination folder' : page === '#settings' ? 'Settings' : !state.ready ? view.title : 'Upload to Google Drive'}</h1></div>
+      {!state.ready && !state.startupError && state.startupProgress && <section className="startup-progress" aria-label="Opening batch progress">
+        <div className="startup-stage" role="status" aria-atomic="true"><LoaderCircle className="startup-spinner" size={22} aria-hidden="true" />
+          <p>{state.startupProgress.message}</p></div>
+        <p className="startup-elapsed" role="timer" aria-live="off">{state.startupProgress.elapsedSeconds} seconds elapsed</p>
+        <p className="small muted">Local batch records only. No photos or videos are being uploaded.</p>
+        {state.startupProgress.elapsedSeconds >= 5 && <p className="small" role="status">Still waiting for the browser. Any startup error will appear here.</p>}
+      </section>}
       {page === '#destination' && <section aria-label="Destination folder"><Destination controller={controller} state={state} />
         <a className="button primary destination-done" href="#batch">{destinationReady ? 'Done' : 'Back to batch'}<Check size={19} /></a>
       </section>}
