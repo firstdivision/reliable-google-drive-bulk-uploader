@@ -35,6 +35,8 @@ export class UploadQueue {
     this.items = new Map();
     this.keys = new Map();
     this.counts = Object.fromEntries(STATES.map((state) => [state, 0]));
+    this.sourceCounts = Object.fromEntries(STATES.map((state) => [state, 0]));
+    this.sourceAuthFailures = 0;
     this.totalBytes = 0;
     this.confirmedBytes = 0;
     this.unstarted = 0;
@@ -54,7 +56,9 @@ export class UploadQueue {
       counts: { ...this.counts }, remaining: this.items.size - this.counts.completed,
       active: this.active.size, enabled: this.enabled, authRequired: this.authRequired,
       unstarted: this.unstarted, missingSources: this.missingSources, storageError: this.storageError,
-      saving: Boolean(this.saving) };
+      saving: Boolean(this.saving),
+      resumableSources: this.sourceCounts.queued + this.sourceCounts.paused + this.sourceAuthFailures,
+      retryableSources: this.sourceCounts.failed };
   }
 
   notify() {
@@ -183,7 +187,11 @@ export class UploadQueue {
           result.mismatched++; continue;
         }
       } catch { result.mismatched++; continue; }
-      if (!item.file) this.missingSources--;
+      if (!item.file) {
+        this.missingSources--;
+        this.sourceCounts[item.status]++;
+        if (item.status === 'failed' && item.error?.auth) this.sourceAuthFailures++;
+      }
       item.file = file;
       item.upload = null;
       result.matched++;
@@ -193,6 +201,12 @@ export class UploadQueue {
   }
 
   update(item, status, confirmedBytes = item.confirmedBytes, error = item.error) {
+    if (item.file) {
+      this.sourceCounts[item.status]--;
+      this.sourceCounts[status]++;
+      if (item.status === 'failed' && item.error?.auth) this.sourceAuthFailures--;
+      if (status === 'failed' && error?.auth) this.sourceAuthFailures++;
+    }
     this.counts[item.status]--;
     this.counts[status]++;
     this.confirmedBytes += confirmedBytes - item.confirmedBytes;
@@ -222,6 +236,7 @@ export class UploadQueue {
       this.items.set(item.id, item);
       this.keys.set(key, item.id);
       this.counts.queued++;
+      this.sourceCounts.queued++;
       this.totalBytes += file.size;
       this.unstarted++;
       this.enqueue(item);
@@ -240,6 +255,10 @@ export class UploadQueue {
     this.keys.delete(item.key);
     this.pendingIds.delete(id);
     this.counts[item.status]--;
+    if (item.file) {
+      this.sourceCounts[item.status]--;
+      if (item.status === 'failed' && item.error?.auth) this.sourceAuthFailures--;
+    }
     this.totalBytes -= item.size;
     if (!item.file && item.status !== 'completed') this.missingSources--;
     this.unstarted--;
@@ -354,6 +373,7 @@ export class UploadQueue {
         this.active.delete(id);
         if (item.status === 'completed') {
           // Keep the completion/selection identity, not large live source references.
+          if (item.file) this.sourceCounts.completed--;
           item.file = null;
           item.upload = null;
         } else if (this.enabled && !this.authRequired &&

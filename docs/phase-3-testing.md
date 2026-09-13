@@ -1,8 +1,25 @@
 # Phase 3 persistence and recovery
 
-Status: implemented on 2026-09-13; automated and mocked desktop-browser recovery
-checks passed. Physical iPhone/Safari, Android, and real Google restart recovery
-are pending. The prior Phase 2 small-batch pass does not cover these changes.
+Status: implemented on 2026-09-13; automated checks and a user-reported recovery
+pass are recorded below. Android and separately verified kill/reboot/expiry cases
+remain pending. The newer Phase 4 dashboard shares these recovery records.
+
+## Reported results - 2026-09-13
+
+The user explicitly reported that the file list survived closing/reopening Safari
+and uploads resumed after reselecting the originals. Storage protection was denied;
+normal metadata saving and recovery still worked. After being asked to verify
+completed files/sizes/duplicates and try a small reload-during-upload case, the user
+reported "Everything is working" and requested Phase 4.
+
+This is an overall user-reported pass, not an agent-operated or instrumented test.
+The final checks were not individually enumerated; exact file counts, sizes,
+revision, device/OS version, offsets, and duration were not supplied. Do not infer
+force-kill/reboot, Android, actual auth/session expiry, or production-scale coverage.
+
+**Decision: proceed to Phase 4, the mobile batch dashboard.** The reselection
+confusion is a concrete UX finding: remembered records and live source access must
+be distinguished, with a visible explanation when Resume is blocked.
 
 The recovery page remains at [the batch URL](https://batchharbor.killfly.com/phase2/).
 Locally, serve the repository root so Phase 1 imports remain available. Use HTTPS

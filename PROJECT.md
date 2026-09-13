@@ -728,9 +728,13 @@ Accepted decisions:
   detail rendering; batch-history management is not introduced here.
 
 Automated checks and an integrated desktop-browser reload/reselection flow with
-real IndexedDB/Web Locks and mocked Google passed. Physical iPhone/iPad, Android,
-Safari termination/reboot, and real Google session/token expiry remain unverified
-for Phase 3. A prior Phase 2 pass does not establish those behaviors.
+real IndexedDB/Web Locks and mocked Google passed. On 2026-09-13 the user confirmed
+resuming after reopening Safari and reselecting originals, then reported all
+requested checks working and asked to proceed to Phase 4. See the
+[reported Phase 3 results](docs/phase-3-testing.md#reported-results---2026-09-13).
+This is not an instrumented pass: exact device/revision, independent per-case
+results, force-kill/reboot, Android, and actual token/session expiry remain
+unverified unless separately recorded.
 
 Implement IndexedDB queue metadata.
 
@@ -746,6 +750,40 @@ Test:
 - user reselect/reconnect workflow
 
 ### Phase 4 — Mobile UI
+
+Implementation status (2026-09-13): React/TypeScript dashboard in `phase4/`, built
+with Vite to `/app/`. The public homepage links to the dashboard. Existing
+Phase 0-3 pages remain available; `/app/` shares the Phase 2 IndexedDB database
+and exclusive writer lock, so there is no migration or competing upload engine.
+
+Accepted implementation decisions:
+
+- Keep protocol and queue outside React. A typed controller owns auth, lifecycle,
+  storage, wake lock, and coalesced snapshot notifications. React subscribes via
+  `useSyncExternalStore`; details are only materialized when opened, 50 rows/page.
+- Short setup transitions to aggregate progress, completion/active/remaining/failed
+  counts, confirmed bytes, Pause/Resume and prominent Retry Failed (including while
+  healthy transfers continue). Source-backed eligibility uses incremental queue
+  counters, not repeated scans of the full list. No new upload states are introduced.
+- Recovery shows missing source access and account connection as separate steps.
+  Disabled Resume has a visible explanation. Saved metadata does not imply saved
+  media access; the storage-protection denial explains that ordinary saving remains.
+- ETA uses recent confirmed-byte progress, begins after five seconds of observations,
+  and resets on pause, retry, offset rollback, or changed batch size. Stalled progress
+  yields no estimate. The percentage does not round to 100% before all files complete.
+- A feature-detected switch controls Screen Wake Lock; actual acquisition/release is
+  displayed separately from the requested setting. No background execution claim.
+- Fonts and icons are bundled locally (DM Sans/Manrope, OFL; Lucide, ISC; React/Vite,
+  MIT). No analytics, media storage, scope changes, CDN runtime dependencies, or
+  application backend. Added build dependencies are frontend tooling only.
+- Production CSP retains Google-only connection destinations. Vite development
+  alone allows local WebSockets and inline stylesheet injection. CI installs locked
+  dependencies, runs tests/typecheck/lint, builds static assets, and publishes `/app/`.
+- One saved batch, fixed destination, and completed deduplication records remain.
+  Batch history/reset and destructive operations are not introduced in this UI phase.
+
+See [Phase 4 testing](docs/phase-4-testing.md) for verification and remaining device
+checks. User-reported Phase 3 results do not constitute a pass for the new dashboard.
 
 Build the batch-oriented dashboard.
 

@@ -24,6 +24,17 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v6
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - name: Check dashboard
+        run: |
+          npm run typecheck
+          npm run lint
+          npm test
+          npm run build
       - name: Check harness
         run: |
           node --check phase0/baseline.js
@@ -49,6 +60,7 @@ jobs:
           cp legal/terms/* public/terms/
           cp legal/style.css public/legal.css
           cp assets/brand/reliable-uploader-logo.png public/assets/brand/
+          cp -R dist/app public/app
       - uses: actions/upload-pages-artifact@v4
         with:
           path: public

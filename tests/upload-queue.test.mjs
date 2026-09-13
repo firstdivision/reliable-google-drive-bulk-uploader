@@ -144,6 +144,40 @@ test('reselection replaces a stale live reference while retaining resumable iden
   assert.equal(queue.missingSources, 0);
 });
 
+test('source eligibility counters follow mixed recovery, retries, removal and completion', async () => {
+  const { queue, workers } = fixture();
+  queue.add([file('paused'), file('failed'), file('remove')]);
+  assert.equal(queue.summary.resumableSources, 3);
+  queue.remove('3');
+  assert.equal(queue.summary.resumableSources, 2);
+  queue.start('folder');
+  await tick();
+  const failed = workers.find(worker => worker.file.name === 'failed');
+  failed.settle('failed', new UploadError('Permission denied'));
+  queue.pause();
+  workers.find(worker => worker.file.name === 'paused').settle();
+  await tick();
+  assert.equal(queue.summary.resumableSources, 1);
+  assert.equal(queue.summary.retryableSources, 1);
+  queue.accountId = 'account';
+  for (const item of queue.items.values()) item.fingerprint = await sourceFingerprint(file(item.name));
+  const restored = fixture();
+  restored.queue.restore(queue.snapshot());
+  assert.equal(restored.queue.summary.resumableSources, 0);
+  await restored.queue.reconnectSources([file('failed')]);
+  assert.equal(restored.queue.summary.resumableSources, 0);
+  assert.equal(restored.queue.summary.retryableSources, 1);
+  restored.queue.retryFailed();
+  await tick();
+  assert.equal(restored.queue.summary.retryableSources, 0);
+  restored.workers[0].settle('completed');
+  await tick();
+  assert.equal(restored.queue.summary.resumableSources, 0);
+  assert.equal(restored.queue.summary.retryableSources, 0);
+  await restored.queue.reconnectSources([file('paused')]);
+  assert.equal(restored.queue.summary.resumableSources, 1);
+});
+
 test('invalid snapshots are rejected atomically without overwriting saved data', () => {
   const original = fixture().queue;
   original.add([file('one'), file('two')]);

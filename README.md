@@ -4,17 +4,44 @@ A planned mobile-first, static web app for uploading large photo/video batches d
 
 ## Current status
 
-**Phase 3 persistence/recovery implemented; real-device restart testing pending.** The existing `/phase2/` batch page now includes saved-queue recovery. Follow the [Phase 3 test procedure](docs/phase-3-testing.md). The earlier [Phase 2 small-batch pass](docs/phase-2-testing.md#reported-results--2026-09-13) and [Phase 1 results](docs/phase-1-testing.md#reported-results-2026-09-09) do not validate restart recovery. [iPhone 16 Pro / iOS 26.6.1 observations](docs/phase-0-iphone-16-pro-ios-26.6.1.md) retain the selected-tab restoration limitation.
+**Phase 4 mobile dashboard implemented; real-device dashboard validation is next.** Open [BatchHarbor](https://batchharbor.killfly.com/app/) after deployment and follow the [Phase 4 checklist](docs/phase-4-testing.md). Phase 3 recovery received a [user-reported pass](docs/phase-3-testing.md#reported-results---2026-09-13); this is not proof of production-scale or all lifecycle reliability. [iPhone observations](docs/phase-0-iphone-16-pro-ios-26.6.1.md) retain the selected-tab restoration limitation.
 
 - `phase0/index.html`: metadata-only picker baseline with count, exact total bytes, and paginated filenames/types/sizes. No file-content reads.
 - `phase0/experiments.html`: separate, explicit 64 KiB readability checks and Screen Wake Lock controls.
 - Neither page uploads or persists media or selection metadata. Both use local assets only and block script network connections with Content Security Policy.
 - `phase1/`: Google authorization, app-accessible destination folders, and a one-file resumable upload with pause and interruption recovery. State is limited to the current tab.
 - `phase2/`: multi-file queue with two concurrent uploads, selection deduplication, batch pause/resume, Retry Failed, and aggregate confirmed progress. Phase 3 adds IndexedDB metadata, original-account binding, source reselection with bounded fingerprints, durable identity checkpoints, and an exclusive cross-tab lock. Media and tokens are never persisted. The basic mobile test page reuses Phase 1's protocol, authentication, and wake lock.
+- `phase4/`: React/TypeScript dashboard built with Vite to `/app/`, with setup/progress views, explicit source/account recovery, confirmed-byte ETA, Keep Awake toggle, and bounded file details. It shares the Phase 2 queue and saved database; close the test page before opening the dashboard.
+
+## Run the dashboard
+
+Use Node.js 22 (CI), or a compatible Node.js 20.19+ installation:
+
+```sh
+npm ci
+npm run dev
+```
+
+Open the URL Vite prints, normally `http://127.0.0.1:5173/app/`. Vite runs only as a
+development server, not an application backend. Real Google sign-in requires an
+authorized OAuth origin; use the deployed HTTPS site for device tests. Home/legal
+links target the assembled site, not the isolated Vite development root.
+
+```sh
+npm test
+npm run typecheck
+npm run lint
+npm run build
+```
+
+The production dashboard is emitted to `dist/app/`. Pages assembles it with the
+homepage, policies, assets, and existing harnesses. Only the local Vite server
+permits inline styles and local WebSocket connections for development; the built
+page retains the restrictive production CSP.
 
 ## Run the harness
 
-No npm dependencies or build step are required. For desktop inspection:
+The existing Phase 0-3 harness pages still need no npm dependencies or build step. For desktop inspection:
 
 ```sh
 python3 -m http.server 8000 --bind 127.0.0.1 --directory phase0
@@ -22,7 +49,7 @@ python3 -m http.server 8000 --bind 127.0.0.1 --directory phase0
 
 Open `http://localhost:8000/`. This serves static files only; it is a development tool, not an application backend.
 
-The [BatchHarbor homepage](https://batchharbor.killfly.com/) describes the application and links its public policies. The [Pages workflow](.github/workflows/pages.yml) checks and publishes the Phase 0, Phase 1, and Phase 2 pages under `/phase0/`, `/phase1/`, and `/phase2/` on pushes to `main`, or when manually dispatched. Plain HTTP over a LAN is not sufficient for the Wake Lock experiment. To inspect Phase 2 locally, serve the repository root rather than only its subdirectory: it imports shared modules from Phase 1.
+The [BatchHarbor homepage](https://batchharbor.killfly.com/) describes the application and links its public policies. The [Pages workflow](.github/workflows/pages.yml) builds and publishes the dashboard under `/app/`, alongside the Phase 0, Phase 1, and Phase 2 pages under `/phase0/`, `/phase1/`, and `/phase2/`, on pushes to `main` or when manually dispatched. Plain HTTP over a LAN is not sufficient for the Wake Lock experiment. To inspect Phase 2 locally, serve the repository root rather than only its subdirectory: it imports shared modules from Phase 1.
 
 The [live Phase 1 Drive spike](https://batchharbor.killfly.com/phase1/)
 is deployed alongside it. Follow the [Phase 1 test procedure](docs/phase-1-testing.md).
@@ -55,11 +82,11 @@ node --test tests/*.test.cjs
 node --test tests/*.test.mjs
 ```
 
-These use synthetic files and browser API doubles. They do not establish Safari picker, storage, or physical screen behavior. No TypeScript checker, linter, or production build is configured for this small plain-JavaScript harness; deploy its static files directly.
+These use synthetic files and browser API doubles. They do not establish Safari picker, storage, or physical screen behavior. The plain-JavaScript harnesses deploy directly; use the npm checks above for Phase 4's typed controller, React UI, linting, and production build.
 
 ## Roadmap and constraints
 
-Next: validate small Phase 3 restart/reselection tests → full mobile batch dashboard → progressive stress tests. Recovery requires retained browser metadata, the original sources, and the original Google account; it does not provide background uploading. Saved records may be evicted or cleared. Android physical batch/recovery validation remains pending.
+Next: validate the Phase 4 dashboard on a small real-device batch → progressive Phase 5 stress tests. Recovery requires retained browser metadata, the original sources, and the original Google account; it does not provide background uploading. Saved records may be evicted or cleared. Android physical batch/recovery validation remains pending.
 
 The intended application stack is React/TypeScript with Vite, IndexedDB, Google Identity Services, Drive REST API v3, and optional Screen Wake Lock. Media must travel directly to Google; completed files must stay completed across retries. Browser wake locks do not provide native background execution.
 
