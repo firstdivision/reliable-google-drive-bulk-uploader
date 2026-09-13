@@ -610,6 +610,30 @@ test('reset preserves the old queue on save failure and drains a previous save b
   await harness.controller.dispose();
 });
 
+test('reset blocks late writes from the old queue from overwriting the empty batch', async () => {
+  const harness = fixture();
+  await harness.setup();
+  await harness.queue.persist();
+  const gate = deferred();
+  const started = deferred();
+  const originalSave = harness.store.save.bind(harness.store);
+  const snapshots: unknown[] = [];
+  harness.store.save = async snapshot => {
+    snapshots.push(structuredClone(snapshot));
+    started.resolve();
+    await gate.promise;
+    return originalSave(snapshot);
+  };
+  const resetting = harness.controller.startNewBatch(true);
+  await started.promise;
+  harness.queue.notify();
+  gate.resolve();
+  assert.equal(await resetting, true);
+  assert.deepEqual(harness.store.saved, { version: 1, accountId: null, folderId: null, items: [] });
+  assert.equal(snapshots.length, 1);
+  await harness.controller.dispose();
+});
+
 test('committed reset permits another account using the real GoogleAuth identity checks', async () => {
   let account = 'original';
   let respond!: () => Promise<void>;

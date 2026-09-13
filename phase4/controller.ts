@@ -598,19 +598,28 @@ export class DashboardController {
       try {
         await this.trackWrite((async () => {
           const previous = this.queue;
+          const previousSaveSnapshot = previous.saveSnapshot;
           if (previous.saving) await previous.saving.catch(() => {});
           if (this.disposed) return;
-          this.reportResetProgress('Opening batch storage on this device...');
-          await this.store.open();
-          if (this.disposed) return;
-          const next = this.createQueue();
-          this.reportResetProgress('Saving the new empty batch on this device...');
-          await this.store.save(next.snapshot());
-          this.installNewBatch(next);
-          next.saveSnapshot = snapshot => this.store.save(snapshot);
-          replaced = true;
+          previous.saveSnapshot = null;
+          try {
+            this.reportResetProgress('Opening batch storage on this device...');
+            await this.store.open();
+            if (this.disposed) return;
+            const next = this.createQueue();
+            this.reportResetProgress('Saving the new empty batch on this device...');
+            await this.store.save(next.snapshot());
+            this.installNewBatch(next);
+            next.saveSnapshot = snapshot => this.store.save(snapshot);
+            replaced = true;
+          } finally {
+            if (!replaced) previous.saveSnapshot = previousSaveSnapshot;
+          }
         })());
-      } finally { this.finishResetProgress(); this.resetting = false; }
+      } finally {
+        this.finishResetProgress();
+        this.resetting = false;
+      }
     }, false);
     return replaced;
   }
