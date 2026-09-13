@@ -10,7 +10,7 @@ function render(overrides: Partial<DashboardSnapshot> = {}) {
     startupProgress: null, resetProgress: null,
     actionMessage: '', selectionMessage: '', storageMessage: 'Queue metadata saved', retentionMessage: '',
     folderId: 'saved-folder', folderName: 'Saved batch destination', destinationLocked: true,
-    folders: [], accountLabel: '', duplicatePolicy: 'upload', online: true,
+    folders: [], accountLabel: '', duplicatePolicy: 'skip', online: true,
     wake: { supported: true, enabled: false, active: false, message: 'Keep Awake is off.' },
     summary: { total: 5000, totalBytes: 50000, confirmedBytes: 10000, remaining: 4000,
       counts: { queued: 0, preparing: 0, uploading: 0, retrying: 0, paused: 4000, failed: 0, skipped: 0, completed: 1000 },

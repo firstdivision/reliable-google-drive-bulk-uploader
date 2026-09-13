@@ -359,7 +359,7 @@ test('confirmed new batch recovers from unreadable or invalid saved records with
     assert.equal(store.saves.length, 0);
     assert.equal(await harness.controller.startNewBatch(true), true);
     assert.equal(store.loaded, 1, 'recovery skips the failed read/restore path');
-    assert.deepEqual(store.saved, { version: 1, accountId: null, folderId: null, duplicatePolicy: 'upload', items: [] });
+    assert.deepEqual(store.saved, { version: 1, accountId: null, folderId: null, duplicatePolicy: 'skip', items: [] });
     assert.equal(harness.snapshot().ready, true);
     assert.equal(harness.snapshot().startupError, '');
     assert.equal(harness.locks.held, true);
@@ -557,7 +557,7 @@ test('reset requires confirmation and idle ownership; a committed empty batch un
   assert.equal(store.saves.length, 0);
   await harness.controller.connect();
   assert.equal(await harness.controller.startNewBatch(true), true);
-  assert.deepEqual(store.saved, { version: 1, accountId: null, folderId: null, duplicatePolicy: 'upload', items: [] });
+  assert.deepEqual(store.saved, { version: 1, accountId: null, folderId: null, duplicatePolicy: 'skip', items: [] });
   assert.equal(harness.snapshot().summary.total, 0);
   assert.equal(harness.snapshot().destinationLocked, false);
   assert.equal(harness.snapshot().folderId, '');
@@ -605,7 +605,7 @@ test('reset preserves the old queue on save failure and drains a previous save b
   gate.resolve();
   await saving;
   assert.equal(await resetting, true);
-  assert.deepEqual(harness.store.saved, { version: 1, accountId: null, folderId: null, duplicatePolicy: 'upload', items: [] });
+  assert.deepEqual(harness.store.saved, { version: 1, accountId: null, folderId: null, duplicatePolicy: 'skip', items: [] });
   assert.equal(harness.snapshot().summary.total, 0);
   await harness.controller.dispose();
 });
@@ -629,7 +629,7 @@ test('reset blocks late writes from the old queue from overwriting the empty bat
   harness.queue.notify();
   gate.resolve();
   assert.equal(await resetting, true);
-  assert.deepEqual(harness.store.saved, { version: 1, accountId: null, folderId: null, duplicatePolicy: 'upload', items: [] });
+  assert.deepEqual(harness.store.saved, { version: 1, accountId: null, folderId: null, duplicatePolicy: 'skip', items: [] });
   assert.equal(snapshots.length, 1);
   await harness.controller.dispose();
 });
@@ -795,7 +795,7 @@ test('disposal during reset commit cannot persist the old queue after the empty 
   gate.resolve();
   assert.equal(await resetting, true);
   await disposing;
-  assert.deepEqual(harness.store.saved, { version: 1, accountId: null, folderId: null, duplicatePolicy: 'upload', items: [] });
+  assert.deepEqual(harness.store.saved, { version: 1, accountId: null, folderId: null, duplicatePolicy: 'skip', items: [] });
   assert.equal(harness.locks.held, false);
 });
 

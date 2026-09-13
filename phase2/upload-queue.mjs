@@ -21,7 +21,7 @@ export async function sourceFingerprint(file) {
 export class UploadQueue {
   constructor({ getToken, onChange = () => {}, concurrency = 2, chunkSize = 8 * 1024 * 1024,
     uploadOptions = {}, createUpload = (options) => new DriveUpload(options),
-    saveSnapshot = null, getAccountId = () => null, duplicatePolicy = 'upload', checkDriveNameExists = null }) {
+    saveSnapshot = null, getAccountId = () => null, duplicatePolicy = 'skip', checkDriveNameExists = null }) {
     if (typeof getToken !== 'function' || !Number.isSafeInteger(concurrency) || concurrency < 1 ||
         !Number.isSafeInteger(chunkSize) || chunkSize < UNIT || chunkSize % UNIT) {
       throw new UploadError('Invalid queue concurrency or chunk configuration.');
@@ -220,7 +220,7 @@ export class UploadQueue {
     });
     this.accountId = snapshot.accountId;
     this.folderId = snapshot.folderId;
-    this.duplicatePolicy = snapshot.duplicatePolicy || 'upload';
+    this.duplicatePolicy = snapshot.duplicatePolicy || 'skip';
     for (const item of restored) {
       this.items.set(item.id, item);
       this.keys.set(item.key, item.id);

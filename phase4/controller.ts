@@ -216,7 +216,7 @@ export class DashboardController {
       getToken: () => this.auth.getToken(),
       getAccountId: () => this.auth.user?.permissionId ?? null,
       onChange: () => this.queueChanged(),
-      duplicatePolicy: 'upload',
+      duplicatePolicy: 'skip',
       checkDriveNameExists: this.foldersApi.existsInFolder ? (folderId, name, options) => this.foldersApi.existsInFolder!(folderId, name, options) : undefined,
     };
     this.createQueue = () => options.queueFactory ? options.queueFactory(queueOptions)

@@ -11,8 +11,8 @@ type Props = { controller: DashboardController };
 type FilePickerProps = { id: string; label: string; disabled: boolean; onFiles(files: File[]): void; recovery?: boolean };
 
 const duplicatePolicies = [
-  { value: 'upload', label: 'Upload anyway', description: 'Always upload with the source filename, even if Drive already has a file with that name.' },
   { value: 'skip', label: 'Skip', description: 'Leave files out when a matching name already exists in the destination folder.' },
+  { value: 'upload', label: 'Upload anyway', description: 'Always upload with the source filename, even if Drive already has a file with that name.' },
   { value: 'increment', label: 'Increment filename', description: 'Try filename_1, filename_2, and so on until the name is available.' },
 ] as const;
 
