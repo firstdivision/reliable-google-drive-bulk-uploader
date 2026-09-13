@@ -551,16 +551,26 @@ export class DashboardController {
   }
 
   async startNewBatch(confirmed: boolean): Promise<boolean> {
-    if (!this.ready && this.startupError && !this.busy && !this.disposed) {
-      if (!confirmed) {
-        this.failure(new Error('Confirm that you checked Drive and accept losing saved recovery and duplicate-prevention history.'));
-        this.emit();
-        return false;
+    if (!confirmed) {
+      if (this.disposed) return false;
+      this.failure(new Error('Confirm that you checked Drive and accept losing saved recovery and duplicate-prevention history.'));
+      this.emit();
+      return false;
+    }
+    if (!this.ready && !this.disposed && this.initialization && (this.startupError || this.busy)) {
+      if (!this.startupStopped) {
+        this.startupStopped = true;
+        this.finishStartup?.();
+        this.startupProgress = null;
+        this.store.close({ abortPending: true });
+        this.releaseWriter?.();
       }
       this.busy = true;
       this.resetting = true;
       this.actionMessage = '';
-      this.reportResetProgress('Closing the previous batch operation and waiting for pending saves...');
+      this.reportResetProgress(this.startupError
+        ? 'Closing the previous batch operation and waiting for pending saves...'
+        : 'Stopping the batch load and waiting for pending saves...');
       let deadline: ReturnType<typeof setTimeout> | undefined;
       try {
         await Promise.race([Promise.allSettled([this.lockTask, ...this.writes]), new Promise<never>((_, reject) => {
@@ -579,9 +589,9 @@ export class DashboardController {
         this.emit();
       }
     }
+    if (!this.ready) return false;
     let replaced = false;
     await this.asyncAction(async () => {
-      if (!confirmed) throw new Error('Confirm that you checked Drive and accept losing saved recovery and duplicate-prevention history.');
       this.requireIdle();
       this.resetting = true;
       this.reportResetProgress('Waiting for pending saves to finish...');

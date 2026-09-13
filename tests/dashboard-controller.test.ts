@@ -429,6 +429,32 @@ test('reset cleanup timeout stops progress and retains the startup error and rec
   await harness.controller.dispose();
 });
 
+test('start new batch can interrupt an in-flight startup before the saved batch is restored', async () => {
+  const store = new TestStore();
+  store.saved = await restoredSnapshot();
+  const opening = deferred();
+  const loading = deferred();
+  store.openGate = opening.promise;
+  store.loadGate = loading.promise;
+  const harness = fixture({ store, startupTimeoutMs: 20 });
+  const initializing = harness.controller.initialize();
+  await harness.waitSnapshot(snapshot => Boolean(snapshot.startupProgress?.message.includes('Opening')));
+  opening.resolve();
+  await store.loadStarted.promise;
+  await harness.waitSnapshot(snapshot => Boolean(snapshot.startupProgress?.message.includes('Reading')));
+  const resetting = harness.controller.startNewBatch(true);
+  await harness.waitSnapshot(snapshot => Boolean(snapshot.resetProgress?.message.includes('Stopping the batch load')));
+  assert.equal(store.loaded, 1);
+  loading.resolve();
+  assert.equal(await resetting, true);
+  await initializing;
+  assert.equal(harness.snapshot().ready, true);
+  assert.equal(harness.snapshot().startupError, '');
+  assert.equal(harness.snapshot().summary.total, 0);
+  assert.equal(store.loaded, 1, 'reset does not reload the old records');
+  await harness.controller.dispose();
+});
+
 test('new batch recovers from a timed-out read and ignores its late result', async () => {
   const gate = deferred();
   const store = new TestStore();

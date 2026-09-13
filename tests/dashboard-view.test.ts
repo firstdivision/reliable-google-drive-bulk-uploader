@@ -62,6 +62,7 @@ test('startup shows the current stage and elapsed time without fake percentages 
     assert.match(html, /aria-label="Opening batch progress"/);
     assert.match(html, /role="status" aria-atomic="true"/);
     assert.match(html, /Reading saved file records and upload progress/);
+    assert.match(html, /<button class="button secondary">[^]*?Start new batch<\/button>/);
     assert.match(html, new RegExp(`role="timer" aria-live="off">${elapsedSeconds} seconds elapsed`));
     assert.match(html, /No photos or videos are being uploaded/);
     assert.equal(html.includes('Still waiting for the browser'), elapsedSeconds >= 5);
