@@ -29,9 +29,13 @@ Changes to variables require a new build/deployment, not just a browser reload.
 
 - **Browse Google Drive** uses the already authorized account's token. No second
   OAuth flow, broader Drive scope, or independent account switch is added.
-- The Google view includes folders, enables folder selection, filters to folder
-  MIME type, and uses list mode. The ownership filter is unset, which Google's
-  documentation specifies includes both owned and shared documents. There is no
+- The Picker navigation separates **My folders** (`setOwnedByMe(true)`) from
+  **Shared with me** (`setOwnedByMe(false)`), with owned folders first. Both views
+  include folders, enable folder selection, filter to folder MIME type, and use
+  list mode. Custom names use `View.setLabel`, which Google marks deprecated;
+  the live SDK still serializes these labels on the selectable views. Recheck this
+  dependency if Google changes Picker. `ViewGroup.addLabel` is not a replacement:
+  it inserts separate headings instead of naming the selectable views. There is no
   upload view or multi-select feature. Nested folders need not have been created
   by this app. Read-only folders may appear but fail the upload permission check.
   "Shared with me" is distinct from Workspace Shared drives; this change does not
@@ -54,11 +58,16 @@ Changes to variables require a new build/deployment, not just a browser reload.
 
 ## Verification
 
-Automated tests cover ownership-unfiltered Picker configuration, missing configuration,
+Automated tests cover separate named owned/shared views and their folder filters, missing configuration,
 scope/token preservation, cancellation, loader failure, invalid callback IDs,
 unwritable/non-folder/trashed selections, authentication failure, immutable batch
 destinations, and late replies after closing. Mocked responses do not establish
 Google's real grant behavior or iPhone dialog layout.
+
+The live Google Picker SDK was checked without credentials: its generated
+navigation contains two directly selectable views, the expected names, opposite
+ownership filters, and folder-only list settings. This verifies SDK configuration,
+not authenticated results or the rendered mobile navigation.
 
 The local production-build browser check used synthetic configuration and mocked
 Google: cancel preserved the old folder; a non-writable folder was rejected;
@@ -86,7 +95,9 @@ After configuring Cloud and deploying:
    not assumed from desktop tests or forced undersized setSize arguments.
 5. Check expiry or revoked folder access fails visibly, preserving the current
    destination. Confirm the browse action disables once uploading starts.
-6. Find a folder shared with your signed-in account with permission to add files.
+6. Switch between My folders and Shared with me; confirm owned folders and folders
+  shared with the signed-in account are separated. In Shared with me, find a folder
+  with permission to add files.
   Select it and verify one small upload arrives there. A read-only shared folder
   must be rejected without changing the previous destination.
 
@@ -100,6 +111,8 @@ Checked 2026-09-13:
 - [Enable folder selection](https://developers.google.com/workspace/drive/picker/reference/picker.docsview.setselectfolderenabled)
 - [Include folders](https://developers.google.com/workspace/drive/picker/reference/picker.docsview.setincludefolders)
 - [Owned-by-me filter](https://developers.google.com/workspace/drive/picker/reference/picker.docsview.setownedbyme)
+- [Navigation views](https://developers.google.com/workspace/drive/picker/reference/picker.pickerbuilder.addview)
+- [View labels (deprecated)](https://developers.google.com/workspace/drive/picker/reference/picker.view.setlabel)
 - [List mode with drive.file](https://developers.google.com/workspace/drive/picker/reference/picker.docsviewmode)
 - [Picker size limits](https://developers.google.com/workspace/drive/picker/reference/picker.pickerbuilder.setsize)
 

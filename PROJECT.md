@@ -205,12 +205,15 @@ The application should allow the user to choose a Google Drive destination folde
 
 Decision (2026-09-13, expanded after user feedback): use Google Picker for browsing
 existing owned and "Shared with me" folders, retaining only `drive.file`.
-Leave the ownership filter unset so both are included, as documented by Google.
+Provide separate "My folders" and "Shared with me" navigation views with
+`setOwnedByMe(true)` and `setOwnedByMe(false)` respectively. Custom names use
+`View.setLabel`, which Google marks deprecated but the live SDK still serializes.
+`ViewGroup.addLabel` adds separate headings, not selectable view names.
 The REST dropdown cannot enumerate all Drive folders under that scope. The main
 dashboard now uses only Picker; the legacy Phase 1/2 test pages retain their
 app-authorized-folder dropdowns. Connecting the dashboard account does not fetch
 the legacy folder list.
-Picker uses the current account's in-memory token, a folder-only list view, and
+Picker uses the current account's in-memory token, folder-only list views, and
 single selection. After selection, verify `files.get` metadata: matching ID, folder
 MIME type, not trashed, and `capabilities.canAddChildren`. Do not trust Picker names
 or infer access to every pre-existing descendant. No media upload view is added.

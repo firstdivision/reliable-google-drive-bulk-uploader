@@ -4,6 +4,8 @@ interface PickerView {
   setSelectFolderEnabled(value: boolean): PickerView;
   setMimeTypes(value: string): PickerView;
   setMode(value: string): PickerView;
+  setOwnedByMe(value: boolean): PickerView;
+  setLabel(value: string): PickerView;
 }
 interface PickerDialog { setVisible(value: boolean): void; dispose(): void }
 interface PickerBuilder {
@@ -104,13 +106,16 @@ export class GoogleFolderPicker implements FolderPicker {
           if (error) reject(error); else resolve(id);
         };
         this.cancelPending = () => finish(null);
-        const view = new picker.DocsView(picker.ViewId.DOCS)
+        const folderView = (ownedByMe: boolean) => new picker.DocsView(picker.ViewId.DOCS)
           .setIncludeFolders(true).setSelectFolderEnabled(true)
           .setMimeTypes('application/vnd.google-apps.folder')
-          .setMode(picker.DocsViewMode.LIST);
+          .setMode(picker.DocsViewMode.LIST).setOwnedByMe(ownedByMe);
         dialog = new picker.PickerBuilder().setDeveloperKey(this.config.apiKey)
           .setAppId(this.config.appId).setOAuthToken(token).setOrigin(this.origin())
-          .setTitle('Choose your upload folder').addView(view).setCallback(result => {
+          .setTitle('Choose your upload folder')
+          .addView(folderView(true).setLabel('My folders'))
+          .addView(folderView(false).setLabel('Shared with me'))
+          .setCallback(result => {
             if (result.action === picker.Action.CANCEL) finish(null);
             if (result.action === picker.Action.PICKED) {
               const id = result.docs?.[0]?.id;

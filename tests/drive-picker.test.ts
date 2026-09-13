@@ -7,12 +7,14 @@ function fixture() {
   let callback!: (result: { action: string; docs?: { id: string }[] }) => void;
   let disposed = 0;
   class View {
-    constructor(id: string) { settings.view = id; }
-    setIncludeFolders(value: boolean) { settings.folders = value; return this; }
-    setSelectFolderEnabled(value: boolean) { settings.selectFolders = value; return this; }
-    setMimeTypes(value: string) { settings.mime = value; return this; }
-    setMode(value: string) { settings.mode = value; return this; }
-    setOwnedByMe(value: boolean) { settings.owned = value; return this; }
+    readonly settings: Record<string, unknown>;
+    constructor(id: string) { this.settings = { view: id }; }
+    setIncludeFolders(value: boolean) { this.settings.folders = value; return this; }
+    setSelectFolderEnabled(value: boolean) { this.settings.selectFolders = value; return this; }
+    setMimeTypes(value: string) { this.settings.mime = value; return this; }
+    setMode(value: string) { this.settings.mode = value; return this; }
+    setOwnedByMe(value: boolean) { this.settings.owned = value; return this; }
+    setLabel(value: string) { this.settings.label = value; return this; }
   }
   class Builder {
     setDeveloperKey(value: string) { settings.key = value; return this; }
@@ -20,7 +22,12 @@ function fixture() {
     setOAuthToken(value: string) { settings.token = value; return this; }
     setOrigin(value: string) { settings.origin = value; return this; }
     setTitle(value: string) { settings.title = value; return this; }
-    addView() { return this; }
+    addView(view: unknown) {
+      assert.ok(view instanceof View);
+      const views = settings.views as unknown[] | undefined;
+      settings.views = [...(views ?? []), { ...view.settings }];
+      return this;
+    }
     setCallback(value: typeof callback) { callback = value; return this; }
     build() { return { setVisible(value: boolean) { settings.visible = value; }, dispose() { disposed++; } }; }
   }
@@ -29,11 +36,14 @@ function fixture() {
   return { picker, api, settings, reply: (result: Parameters<typeof callback>[0]) => callback(result), disposed: () => disposed };
 }
 
-test('Picker uses the current account and folder list without filtering out shared or owned folders', async () => {
+test('Picker uses the current account with separate owned and shared folder navigation', async () => {
   const harness = fixture();
   const result = harness.picker.pick(() => 'memory-token');
   await new Promise(resolve => setImmediate(resolve));
-  assert.deepEqual(harness.settings, { view: 'docs', folders: true, selectFolders: true, mime: 'application/vnd.google-apps.folder', mode: 'list',
+  assert.deepEqual(harness.settings, { views: [
+    { label: 'My folders', view: 'docs', folders: true, selectFolders: true, mime: 'application/vnd.google-apps.folder', mode: 'list', owned: true },
+    { label: 'Shared with me', view: 'docs', folders: true, selectFolders: true, mime: 'application/vnd.google-apps.folder', mode: 'list', owned: false },
+  ],
     key: 'test-key', app: '123', token: 'memory-token', origin: 'https://example.test', title: 'Choose your upload folder', visible: true });
   await assert.rejects(harness.picker.pick(() => 'other'), /already open/);
   harness.reply({ action: 'picked', docs: [{ id: 'existing-folder' }] });
