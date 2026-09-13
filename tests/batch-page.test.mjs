@@ -4,7 +4,6 @@ import { readFileSync } from 'node:fs';
 import vm from 'node:vm';
 import { UploadQueue } from '../phase2/upload-queue.mjs';
 
-const tick = async () => { for (let turn = 0; turn < 20; turn++) await new Promise(setImmediate); };
 function element() {
   return { textContent: '', disabled: false, hidden: false, files: [], value: '', checked: false,
     open: false, children: [], options: [], listeners: {},
@@ -29,6 +28,24 @@ async function harness({ saved = null, locked = false, loadError = false } = {})
   let auth;
   const window = element();
   const workers = [];
+  const stateWaiters = new Set();
+  function waitFor(predicate, description) {
+    if (predicate()) return Promise.resolve();
+    return new Promise((resolve, reject) => {
+      const timeout = setTimeout(() => {
+        stateWaiters.delete(check);
+        reject(new Error(`Timed out waiting for ${description}: ${JSON.stringify(queue.summary)}`));
+      }, 5000);
+      const check = () => {
+        if (!predicate()) return;
+        clearTimeout(timeout);
+        stateWaiters.delete(check);
+        resolve();
+      };
+      stateWaiters.add(check);
+      check();
+    });
+  }
   class TestAuth {
     constructor() { auth = this; this.token = ''; }
     connect() { this.token = 'test'; this.user = { displayName: 'Synthetic account', permissionId: 'original' }; return Promise.resolve(this.user); }
@@ -40,7 +57,10 @@ async function harness({ saved = null, locked = false, loadError = false } = {})
   }
   class TestQueue extends UploadQueue {
     constructor(config) {
-      super({ ...config, createUpload: (options) => {
+      super({ ...config, onChange: current => {
+        config.onChange(current);
+        for (const check of stateWaiters) check();
+      }, createUpload: (options) => {
         const worker = { ...options, fileId: `id-${workers.length}`, confirmedBytes: 0, error: null,
           state: 'queued', starts: 0,
           change(state) { this.state = state; this.onChange(this); },
@@ -81,8 +101,17 @@ async function harness({ saved = null, locked = false, loadError = false } = {})
     Option: function (text, value) { return { textContent: text, value }; },
     setTimeout: (callback) => { timers.push(callback); return timers.length; },
   });
-  await tick();
+  await new Promise(setImmediate);
   return { get, queue, workers, auth, window, saved: () => structuredClone(saved),
+    waitFor,
+    waitForUploading(count) {
+      return waitFor(() => workers.filter(worker => worker.state === 'uploading').length === count,
+        `${count} uploading workers`);
+    },
+    waitForIdle() {
+      return waitFor(() => !queue.enabled && queue.active.size === 0 && !queue.saving &&
+        queue.savedRevision === queue.revision, 'an idle queue with committed metadata');
+    },
     flush() { while (timers.length) timers.shift()(); },
     async connect() {
       await get('connect').emit('click');
@@ -127,20 +156,20 @@ test('batch controls reflect selection, destination lock, pause/resume, and comp
   await h.connect();
   assert.equal(h.get('upload').disabled, false);
   h.get('upload').emit('click');
-  await tick(); h.flush();
+  await h.waitForUploading(2); h.flush();
   assert.equal(h.get('folders').disabled, true);
   assert.equal(h.get('active').textContent, '2');
   assert.equal(h.get('connect').disabled, true);
   h.get('pause').emit('click');
-  await tick(); h.flush();
+  await h.waitForIdle(); h.flush();
   assert.equal(h.get('active').textContent, '0');
   assert.equal(h.get('upload').disabled, false);
   h.get('upload').emit('click');
-  await tick();
+  await h.waitForUploading(2);
   for (const worker of h.workers.filter((worker) => worker.state === 'uploading')) worker.settle('completed');
-  await tick();
+  await h.waitForUploading(1);
   for (const worker of h.workers.filter((worker) => worker.state === 'uploading')) worker.settle('completed');
-  await tick(); h.flush();
+  await h.waitForIdle(); h.flush();
   assert.equal(h.get('completed').textContent, '3');
   assert.equal(h.get('percent').textContent, '100.0%');
   assert.match(h.get('batch-status').textContent, /Batch complete/);
@@ -152,9 +181,9 @@ test('UI reconnect does not invalidate the new token before Resume', async () =>
   const h = await harness();
   h.select(); await h.connect();
   h.get('upload').emit('click');
-  await tick();
+  await h.waitForUploading(2);
   h.workers[0].settle('failed', Object.assign(new Error('Expired'), { auth: true }));
-  await tick(); h.flush();
+  await h.waitForIdle(); h.flush();
   assert.equal(h.auth.token, '');
   assert.equal(h.get('connect').disabled, false);
   assert.equal(h.get('upload').disabled, true);
@@ -163,20 +192,20 @@ test('UI reconnect does not invalidate the new token before Resume', async () =>
   assert.equal(h.auth.token, 'test');
   assert.equal(h.get('upload').disabled, false);
   h.get('upload').emit('click');
-  await tick(); h.flush();
+  await h.waitForUploading(2); h.flush();
   assert.equal(h.queue.authRequired, false);
   assert.equal(h.get('active').textContent, '2');
-  h.queue.pause(); await tick();
+  h.queue.pause(); await h.waitForIdle();
 });
 
 test('failures are filterable and Retry Failed never restarts completed files', async () => {
   const h = await harness();
   h.select(2); await h.connect();
   h.get('upload').emit('click');
-  await tick();
+  await h.waitForUploading(2);
   h.workers[0].settle('failed', new Error('Permission denied'));
   h.workers[1].settle('completed');
-  await tick(); h.flush();
+  await h.waitForIdle(); h.flush();
   assert.equal(h.get('retry').disabled, false);
   h.get('details').open = true;
   h.get('failed-only').checked = true;
@@ -184,11 +213,11 @@ test('failures are filterable and Retry Failed never restarts completed files', 
   assert.equal(h.get('items').children.length, 1);
   assert.equal(h.get('items').children[0].children[1].textContent, 'Permission denied');
   h.get('retry').emit('click');
-  await tick();
+  await h.waitForUploading(1);
   assert.equal(h.workers[0].starts, 2);
   assert.equal(h.workers[1].starts, 1);
   h.workers[0].settle('completed');
-  await tick(); h.flush();
+  await h.waitForIdle(); h.flush();
   assert.equal(h.get('items').children.length, 0);
 });
 
@@ -196,9 +225,9 @@ test('pagehide pauses the batch instead of claiming background execution', async
   const h = await harness();
   h.select(); await h.connect();
   h.get('upload').emit('click');
-  await tick();
+  await h.waitForUploading(2);
   h.window.emit('pagehide');
-  await tick(); h.flush();
+  await h.waitForIdle(); h.flush();
   assert.equal(h.queue.summary.active, 0);
   assert.equal(h.queue.summary.counts.paused, 3);
 });
@@ -218,10 +247,10 @@ test('restored page pins destination and enables resume only after source reconn
   const first = await harness();
   first.select(2); await first.connect();
   first.get('upload').emit('click');
-  await tick();
+  await first.waitForUploading(2);
   first.workers[0].settle('completed');
   first.get('pause').emit('click');
-  await tick(); first.flush();
+  await first.waitForIdle(); first.flush();
   const restored = await harness({ saved: first.saved() });
   assert.equal(restored.get('folders').value, 'folder');
   assert.equal(restored.get('completed').textContent, '1');
@@ -251,4 +280,29 @@ test('another tab or unreadable saved data blocks controls without replacing the
     assert.match(page.get('storage-status').textContent, /Saved data has not been replaced/);
     assert.deepEqual(page.saved(), options.saved || null);
   }
+});
+
+test('worker readiness waits for fingerprint completion, not a fixed number of event-loop turns', async context => {
+  let releaseFingerprint;
+  const fingerprintGate = new Promise(resolve => { releaseFingerprint = resolve; });
+  const digest = globalThis.crypto.subtle.digest.bind(globalThis.crypto.subtle);
+  context.mock.method(globalThis.crypto.subtle, 'digest', async (...args) => {
+    await fingerprintGate;
+    return digest(...args);
+  });
+  context.after(() => releaseFingerprint());
+  const page = await harness();
+  page.select(2); await page.connect();
+  page.get('upload').emit('click');
+  await page.waitFor(() => page.queue.summary.counts.preparing === 2, 'source preparation');
+  let workersReady = false;
+  const ready = page.waitForUploading(2).then(() => { workersReady = true; });
+  for (let turn = 0; turn < 25; turn++) await new Promise(setImmediate);
+  assert.equal(page.workers.length, 0);
+  assert.equal(workersReady, false);
+  releaseFingerprint();
+  await ready;
+  for (const worker of page.workers) worker.settle('completed');
+  await page.waitForIdle();
+  assert.equal(page.saved().items.filter(item => item.status === 'completed').length, 2);
 });
