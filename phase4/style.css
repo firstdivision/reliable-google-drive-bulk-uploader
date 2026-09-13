@@ -93,8 +93,8 @@ progress::-webkit-progress-bar { background: #e6ebf1; }
 progress::-webkit-progress-value { background: var(--blue); border-radius: 8px; transition: width .2s; }
 progress::-moz-progress-bar { background: var(--blue); }
 .progress-meta { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 8px 15px; font-size: 12px; color: var(--muted); margin: 12px 0 20px; font-variant-numeric: tabular-nums; }
-.stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); padding: 20px 0; margin: 0; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
-.stats > div { text-align: center; border-right: 1px solid var(--line); color: var(--green); }
+.stats { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); padding: 20px 0; margin: 0; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+.stats > div { min-width: 0; text-align: center; border-right: 1px solid var(--line); color: var(--green); }
 .stats > div:last-child { border-right: 0; }
 .stats > div:nth-child(2) { color: var(--blue); }
 .stats > div:nth-child(3) { color: var(--muted); }
@@ -165,8 +165,8 @@ footer nav a { display: inline-flex; align-items: center; min-height: 44px; }
   .progress-heading p { font-size: 12px; }
   .percentage { font-size: 38px; }
   .progress-meta { font-size: 11px; }
-  .stats dd { font-size: 23px; }
-  .stats dt { font-size: 11px; }
+  .stats dd { font-size: 21px; }
+  .stats dt { font-size: 10px; }
   .wake-strip { padding: 14px; gap: 10px; }
   .account-row { flex-wrap: wrap; }
   .account-row .button { margin-left: auto; }
@@ -178,7 +178,6 @@ footer nav a { display: inline-flex; align-items: center; min-height: 44px; }
   .checklist-icon { display: none; }
   .progress-heading { flex-wrap: wrap; }
   .percentage { margin-left: auto; }
-  .stats dd { font-size: 20px; }
   .detail-toolbar { flex-wrap: wrap; }
 }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { transition: none !important; animation: none !important; } }
