@@ -31,6 +31,17 @@ test('homepage presents the independent BatchHarbor brand and policy links', () 
   assert.doesNotMatch(homepage, /<script|<form|google-analytics|googletagmanager/i);
 });
 
+test('homepage is customer-facing while retaining upload and recovery limitations', () => {
+  assert.match(homepage, /href="app\/">Open BatchHarbor/);
+  assert.doesNotMatch(homepage, /href="phase\d\//);
+  assert.doesNotMatch(homepage, /experimental|current status|\btests?\b|testing|being tested|intended to work|before large-batch release/i);
+  assert.match(homepage, /Keep the page open and active/);
+  assert.match(homepage, /Background uploading is not supported/);
+  assert.match(homepage, /recovery is best-effort/);
+  assert.match(homepage, /saved batch records, access to the original files, and the same Google account/);
+  assert.match(homepage, /Keep your originals and verify uploaded files in Drive/);
+});
+
 test('home and app expose static Open Graph metadata with a deployable preview image', () => {
   const origin = 'https://batchharbor.killfly.com';
   for (const [source, path, title] of [
