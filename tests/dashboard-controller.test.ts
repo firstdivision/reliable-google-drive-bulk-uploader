@@ -7,6 +7,7 @@ import type {
   DashboardStatus, DashboardStore, DashboardWakeSentinel,
 } from '../phase4/controller.ts';
 import { UploadQueue, sourceFingerprint } from '../phase2/upload-queue.mjs';
+import { GoogleAuth, DRIVE_SCOPE } from '../phase1/google.mjs';
 
 function deferred<T = void>() {
   let resolve!: (value: T | PromiseLike<T>) => void;
@@ -47,6 +48,7 @@ class TestAuth implements DashboardAuth {
     return this.user;
   }
   invalidate() { this.token = ''; }
+  resetAccount() { this.invalidate(); this.user = null; }
   getToken() {
     if (!this.token) throw Object.assign(new Error('Reconnect Google.'), { auth: true });
     return this.token;
@@ -255,6 +257,156 @@ test('initialization is idempotent, snapshots are cached, progress coalesces wit
   controller.remove('1');
   assert.equal(harness.snapshot().summary.total, 0);
   await controller.dispose();
+});
+
+test('startup deadlines identify stalled stages and ignore late successful responses', async () => {
+  for (const stage of ['lock', 'open', 'load'] as const) {
+    const gate = deferred();
+    const store = new TestStore();
+    store.saved = await restoredSnapshot();
+    if (stage === 'open') store.openGate = gate.promise;
+    if (stage === 'load') store.loadGate = gate.promise;
+    const locks = new TestLocks();
+    const lockManager = stage === 'lock' ? {
+      request: async (...args: Parameters<TestLocks['request']>) => {
+        await gate.promise;
+        return locks.request(...args);
+      },
+    } : locks;
+    const harness = fixture({ store, lockManager, startupTimeoutMs: 20 });
+    await harness.controller.initialize();
+    const expected = { lock: 'acquiring the batch tab lock', open: 'opening browser queue storage', load: 'reading the saved batch' };
+    assert.match(harness.snapshot().startupError, new RegExp(expected[stage]));
+    assert.equal(harness.snapshot().ready, false);
+    harness.controller.select([file()]);
+    harness.controller.start();
+    assert.equal(harness.workers.length, 0);
+    assert.equal(store.saves.length, 0);
+    const error = harness.snapshot().startupError;
+    gate.resolve();
+    await new Promise(resolve => setImmediate(resolve));
+    assert.equal(harness.snapshot().startupError, error);
+    assert.equal(harness.snapshot().summary.total, 0);
+    assert.equal(harness.queue.saveSnapshot, null);
+    assert.equal(store.closed, true);
+    assert.equal(locks.held, false);
+    assert.equal(store.saves.length, 0);
+    assert.deepEqual(store.saved, await restoredSnapshot());
+    await harness.controller.dispose();
+  }
+});
+
+test('reset requires confirmation and idle ownership; a committed empty batch unlocks destination and account', async () => {
+  const store = new TestStore();
+  store.saved = await restoredSnapshot();
+  const harness = fixture({ store });
+  assert.equal(await harness.controller.startNewBatch(true), false);
+  await harness.controller.initialize();
+  assert.equal(await harness.controller.startNewBatch(false), false);
+  assert.equal(store.saves.length, 0);
+  await harness.controller.connect();
+  assert.equal(await harness.controller.startNewBatch(true), true);
+  assert.deepEqual(store.saved, { version: 1, accountId: null, folderId: null, items: [] });
+  assert.equal(harness.snapshot().summary.total, 0);
+  assert.equal(harness.snapshot().destinationLocked, false);
+  assert.equal(harness.snapshot().folderId, '');
+  assert.equal(harness.snapshot().connected, false);
+  assert.equal(harness.auth.token, '');
+  assert.equal(harness.queue.saveSnapshot, null);
+  assert.equal(harness.locks.held, true);
+  assert.equal(harness.workers.length, 0, 'reset makes no Drive requests');
+  harness.auth.nextAccount = 'another-account';
+  await harness.controller.connect();
+  harness.controller.chooseFolder('folder');
+  harness.controller.select([file()]);
+  harness.controller.start();
+  await harness.wait(() => harness.workers.some(worker => worker.running));
+  assert.equal(await harness.controller.startNewBatch(true), false);
+  assert.match(harness.snapshot().actionMessage, /Pause uploads/);
+  harness.workers[0].settle('completed');
+  await harness.wait(() => harness.snapshot().summary.total === 1 && !harness.workers[0].running);
+  await harness.controller.dispose();
+});
+
+test('reset preserves the old queue on save failure and drains a previous save before replacing it', async () => {
+  const harness = fixture();
+  await harness.setup();
+  await harness.queue.persist();
+  const saved = structuredClone(harness.store.saved);
+  harness.store.failSave = true;
+  assert.equal(await harness.controller.startNewBatch(true), false);
+  assert.deepEqual(harness.store.saved, saved);
+  assert.equal(harness.snapshot().summary.total, 1);
+  assert.match(harness.snapshot().actionMessage, /Quota exceeded/);
+  assert.notEqual(harness.queue.saveSnapshot, null);
+  harness.store.failSave = false;
+  const gate = deferred();
+  harness.store.saveGate = gate.promise;
+  harness.controller.select([file('second.mp4')]);
+  const saving = harness.queue.saving;
+  const resetting = harness.controller.startNewBatch(true);
+  harness.controller.select([file('blocked.mp4')]);
+  harness.controller.pause();
+  assert.equal(harness.snapshot().summary.total, 2);
+  assert.equal(harness.snapshot().busy, true);
+  assert.deepEqual(harness.store.saved, saved);
+  gate.resolve();
+  await saving;
+  assert.equal(await resetting, true);
+  assert.deepEqual(harness.store.saved, { version: 1, accountId: null, folderId: null, items: [] });
+  assert.equal(harness.snapshot().summary.total, 0);
+  await harness.controller.dispose();
+});
+
+test('committed reset permits another account using the real GoogleAuth identity checks', async () => {
+  let account = 'original';
+  let respond!: () => Promise<void>;
+  const auth = new GoogleAuth({
+    googleProvider: () => ({ accounts: { oauth2: {
+      initTokenClient(config: { callback(result: unknown): Promise<void> }) {
+        respond = () => config.callback({ access_token: 'test-token', expires_in: 3600, scope: DRIVE_SCOPE });
+        return { requestAccessToken() {} };
+      },
+      hasGrantedAllScopes: () => true,
+    } } }),
+    fetchImpl: async () => new Response(JSON.stringify({ user: { permissionId: account } })),
+  });
+  const harness = fixture({ auth });
+  await harness.controller.initialize();
+  let connection = harness.controller.connect();
+  await respond(); await connection;
+  harness.controller.select([file()]);
+  account = 'different';
+  connection = harness.controller.connect();
+  await respond(); await connection;
+  assert.equal(harness.snapshot().connected, false);
+  assert.match(harness.snapshot().actionMessage, /original Google account/);
+  assert.equal(await harness.controller.startNewBatch(true), true);
+  assert.equal(auth.user, null);
+  connection = harness.controller.connect();
+  await respond(); await connection;
+  assert.equal(harness.snapshot().connected, true);
+  assert.deepEqual(auth.user, { permissionId: 'different', displayName: undefined, emailAddress: undefined });
+  await harness.controller.dispose();
+});
+
+test('disposal during reset commit cannot persist the old queue after the empty snapshot', async () => {
+  const harness = fixture();
+  await harness.setup();
+  await harness.queue.persist();
+  const gate = deferred();
+  const started = deferred();
+  const save = harness.store.save.bind(harness.store);
+  harness.store.save = async snapshot => { started.resolve(); await gate.promise; await save(snapshot); };
+  const resetting = harness.controller.startNewBatch(true);
+  await started.promise;
+  const disposing = harness.controller.dispose();
+  assert.equal(harness.locks.held, true);
+  gate.resolve();
+  assert.equal(await resetting, true);
+  await disposing;
+  assert.deepEqual(harness.store.saved, { version: 1, accountId: null, folderId: null, items: [] });
+  assert.equal(harness.locks.held, false);
 });
 
 test('server authorization rejection invalidates a locally unexpired token exactly once', async () => {

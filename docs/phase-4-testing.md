@@ -3,6 +3,25 @@
 Status: implemented 2026-09-13; automated checks and synthetic desktop-browser
 workflow tests passed. Real iPhone/iPad and Android dashboard validation is pending.
 
+## Latest user feedback - 2026-09-13
+
+The user reported the phone remaining at "Before you continue / Opening saved
+batch". The cause is not established and no successful workaround was reported.
+This is an unresolved startup issue, not a passing device test.
+
+Startup hardening now stops the wait after 15 seconds of runnable browser time and
+reports the pending stage: acquiring the tab lock, opening browser queue storage,
+or reading the saved batch. **Reload saved batch** retries without deleting records.
+Late responses cannot revive the failed controller. This bounds the UI wait; it
+does not establish or repair the underlying Safari failure without device evidence.
+
+The user rejected reconstructing large source selections as a normal recovery
+workflow and explicitly chose to retain the browser-only app. The primary
+acceptance workflow keeps the page open and active through completion. Existing
+reselection tests below exercise an optional best-effort fallback, not a promise
+of seamless recovery after closing the page. Keep the persistence and duplicate
+prevention checks; do not mask startup failures by automatically discarding data.
+
 Open [BatchHarbor](https://batchharbor.killfly.com/app/) after deployment. Close
 other BatchHarbor uploader/test tabs first: the dashboard and `/phase2/` intentionally
 share one saved queue and writer lock. Existing recovery data is reused, not reset.
@@ -17,13 +36,22 @@ share one saved queue and writer lock. Existing recovery data is reused, not res
 - Storage settings are secondary; denied protection explicitly does not mean save
   failure. Same privacy boundary, OAuth scope, durable IDs, and upload protocol.
 
-One saved batch keeps its destination and account. Add More joins it; there is no
-batch reset/history UI in this phase. Removing unstarted entries is local only.
+One saved batch keeps its destination and account. Add More joins it. The user
+approved **Start new batch** after reporting the old-batch problem. It requires a
+confirmation checkbox and a separate commit action, clears local records including
+completed history, and permits a new account/destination. It never deletes originals
+or Drive files. It is blocked during uploads, other operations, or failed startup;
+it can discard a successfully loaded batch without reselecting missing originals.
+Reset waits for prior writes and publishes an empty batch only after its durable
+save succeeds. There is no batch-history UI. Removing unstarted entries is local only.
 Source matching remains metadata plus bounded fingerprints, not whole-file equality.
 
 ## Device checklist
 
 Use 3-5 disposable files, about 200-500 MB, before increasing scale.
+For the primary keep-open workflow, run steps 1-3, 6-7, and 9. Steps 4-5 and 8
+separately test recovery and tab exclusion; use controlled, easily reselected
+sources for those checks.
 
 1. Open `/app/` on Safari. Check readable headings, controls, and no horizontal
    overflow at your preferred text size. Select files and verify count/bytes.
@@ -43,6 +71,15 @@ Use 3-5 disposable files, about 200-500 MB, before increasing scale.
    owns the saved queue. Close the owner and reload the second tab to recover.
 9. Verify exactly one completed Drive file per entry, correct sizes and contents,
    and record any Safari storage growth or instability. Keep the originals.
+10. If startup stalls, keep the page visible for at least 15 seconds. Record the
+   exact error stage and loaded revision. Close other uploader tabs and use
+   **Reload saved batch**. Do not clear website data just to collect this evidence.
+11. With a disposable loaded batch and uploads paused, open **Start new batch**.
+   Check the counts and warning. Cancel must retain the batch; reopening must
+   require a fresh checkbox confirmation. Inspect Drive, then confirm the reset.
+   Check that the empty batch survives reload, a new account/destination can be
+   chosen, and the original source/Drive files remain. Do not reupload old files
+   expecting the discarded duplicate-prevention records to protect them.
 
 Record loaded revision, device/OS/browser, sample size/count, results per case,
 and any unexercised auth/session expiry. Avoid private filenames, tokens, and session
@@ -59,12 +96,27 @@ npm run build
 ```
 
 Node tests cover the existing protocol/queue/storage and typed dashboard controller.
-The implementation verification passed all 112 tests, type checking, linting,
+The initial implementation verification passed all 112 tests, type checking, linting,
 production build, legacy script syntax checks, and assembled static link checks.
 New coverage includes server-side auth rejection with locally unexpired tokens,
 fresh-token preservation, disposal/write draining, tab exclusion, wake races,
 source-backed control eligibility, ETA resets, safe rendering, and explicit recovery
 messages. Waits use observable conditions for asynchronous file preparation.
+
+Startup/reset regressions additionally hold lock/open/read stages past the deadline,
+release them late, reject reset before startup/during active uploads/without consent,
+fail reset saves, and close the controller during a reset commit. Account switching
+after reset is tested with the real GoogleAuth implementation and mocked Google.
+Normal token invalidation still preserves the original-account restriction.
+
+The production desktop-browser follow-up used only synthetic files on an isolated
+local origin. Cancel retained two entries; confirmed reset survived reload. A
+deliberately withheld IndexedDB read-completion event produced the read-stage
+timeout (with an accelerated test timer), made no writes, and did not re-enable
+uploads when released late. Reload after removing the fault restored the entry,
+which could then be reset without originals. A 390px isolated viewport had no
+horizontal overflow; mobile screenshot capture was unreliable, so device visual
+and touch verification remain pending. No real Google upload was performed.
 
 Vite emits `dist/app/`. The Pages workflow adds that directory to the existing
 static deployment. Node 22 is pinned in CI. The development-only CSP accommodation

@@ -93,6 +93,29 @@ function FileDetails({ controller, state }: Props & { state: DashboardSnapshot }
   </div>;
 }
 
+export function NewBatchControl({ controller, state }: Props & { state: DashboardSnapshot }) {
+  const [confirming, setConfirming] = useState(false);
+  const [confirmed, setConfirmed] = useState(false);
+  const disabled = !state.ready || state.busy || state.summary.enabled || state.summary.active > 0;
+  return <section className="new-batch-section" aria-label="Start a new batch">
+    {!confirming ? <button className="button secondary" disabled={disabled} onClick={() => { setConfirmed(false); setConfirming(true); }}>
+      <FolderPlus size={18} />Start new batch</button> : <form aria-labelledby="reset-title" onSubmit={event => {
+      event.preventDefault();
+      void controller.startNewBatch(confirmed).then(success => { if (success) { setConfirming(false); setConfirmed(false); } });
+    }}>
+      <h2 id="reset-title">Discard this batch's local records?</h2>
+      <p>This clears {state.summary.total.toLocaleString()} file records, including {state.summary.counts.completed.toLocaleString()} completed entries, saved progress, and the destination. Recovery and duplicate-prevention history for this batch will be lost. Uploading the same files again may create duplicates.</p>
+      <p>No original photos or videos and no files already in Google Drive will be deleted. Check Drive before continuing.</p>
+      {state.folderId && <p><a href={`https://drive.google.com/drive/folders/${encodeURIComponent(state.folderId)}`} target="_blank" rel="noopener noreferrer">Inspect destination in Drive <ArrowRight size={16} /></a></p>}
+      <label className="reset-confirm"><input type="checkbox" checked={confirmed} disabled={disabled} onChange={event => setConfirmed(event.target.checked)} />
+        <span>I checked Drive and accept losing this batch's recovery and duplicate-prevention history.</span></label>
+      <div className="reset-actions"><button type="button" className="button secondary" disabled={state.busy} onClick={() => { setConfirming(false); setConfirmed(false); }}>Cancel</button>
+        <button type="submit" className="button retry" disabled={disabled || !confirmed}><FolderPlus size={18} />Clear records and start new batch</button></div>
+    </form>}
+    {disabled && <p className="small muted">{!state.ready ? 'Saved storage must open safely before a batch can be replaced.' : state.busy ? 'Wait for the current operation to finish.' : 'Pause uploads and wait for active requests to stop before starting a new batch.'}</p>}
+  </section>;
+}
+
 export function Dashboard({ controller }: Props) {
   const state = useSyncExternalStore(controller.subscribe, controller.getSnapshot, controller.getSnapshot);
   const summary = state.summary;
@@ -122,7 +145,7 @@ export function Dashboard({ controller }: Props) {
     </header>
     <main>
       <div className="page-heading"><div><p className="eyebrow">{setup ? 'YOUR NEXT BATCH' : 'BATCH OVERVIEW'}</p>
-        <h1>{setup ? 'A little setup. A lot uploaded.' : view.title}</h1></div>
+        <h1>{!state.ready ? view.title : setup ? 'A little setup. A lot uploaded.' : view.title}</h1></div>
         {started && <button className="text-button" onClick={() => setSetupOverride(!setupOverride)}>{setupOverride ? 'Back to progress' : 'Batch settings'}<ArrowRight size={16} /></button>}
       </div>
       {!state.online && <div className="notice warning" role="status"><WifiOff size={21} /><div><strong>Connection interrupted</strong><p>Keep this page open. Uploads retry automatically; permanent failures remain available under Retry Failed.</p></div></div>}
@@ -133,6 +156,8 @@ export function Dashboard({ controller }: Props) {
           {blocker.kind === 'sources' && <FilePicker id="recovery-files" label="Select originals again" recovery disabled={sourceDisabled} onFiles={files => void controller.reconnectSources(files)} />}
           {blocker.kind === 'account' && <button className="button secondary" disabled={!state.ready || state.busy || summary.enabled || summary.active > 0} onClick={() => void controller.connect()}><Link2 size={18} />Connect Google</button>}
           {blocker.kind === 'storage' && <button className="button secondary" disabled={state.busy || summary.active > 0} onClick={() => void controller.retryStorage()}><RotateCcw size={18} />Retry saving</button>}
+          {blocker.kind === 'startup' && <><button className="button secondary" onClick={() => window.location.reload()}><RefreshCw size={18} />Reload saved batch</button>
+            <p className="small">Uploads and batch reset remain disabled until storage opens safely. Reloading does not clear saved records.</p></>}
         </div>)}
         {summary.missingSources > 0 && <p className="small">Choose the same photos and videos, including completed ones if easier. Completed files are skipped. Reconnecting does not upload anything until you resume.</p>}
       </section>}
@@ -166,7 +191,7 @@ export function Dashboard({ controller }: Props) {
             <button className="button primary" disabled={!view.canResume} aria-describedby={!view.canResume && !view.complete ? 'resume-reason' : undefined} onClick={begin}>{view.complete ? <CheckCircle2 size={21} /> : started ? <Play size={21} /> : <Upload size={21} />}{view.complete ? 'All uploaded' : started ? 'Resume upload' : 'Upload All'}</button>}
           {summary.counts.failed > 0 && <button className="button retry" disabled={!view.canRetry} onClick={() => { controller.retryFailed(); setSetupOverride(false); }}><RotateCcw size={20} />Retry Failed ({summary.counts.failed.toLocaleString()})</button>}
         </div>
-        {!summary.enabled && !view.canResume && !view.complete && <p className="blocked-reason" id="resume-reason">{state.busy ? 'Wait for the current operation to finish.' : !summary.total ? 'Select files, connect Google, and choose a destination to begin.' :
+        {!summary.enabled && !view.canResume && !view.complete && <p className="blocked-reason" id="resume-reason">{state.startupError ? 'Startup failed. Review the message above and reload to retry.' : state.busy ? 'Wait for the current operation to finish.' : !summary.total ? 'Select files, connect Google, and choose a destination to begin.' :
           summary.remaining === summary.missingSources ? 'Resume is unavailable until you select the originals again.' :
           !state.connected ? 'Connect Google to enable upload.' : !state.folderId ? 'Choose a destination to enable upload.' :
           summary.counts.failed ? 'Use Retry Failed to retry failed entries.' : view.blockers[0]?.message || 'Waiting for active requests to stop.'}</p>}
@@ -174,13 +199,14 @@ export function Dashboard({ controller }: Props) {
       </div>
       {started && !setup && <div className="add-more-row"><FilePicker id="add-files" label="Add more files" disabled={selectionDisabled} onFiles={files => controller.select(files)} /><span className="small muted">Same batch. Same destination.</span></div>}
       {state.selectionMessage && !setup && !summary.missingSources && <p className="selection-message" role="status">{state.selectionMessage}</p>}
+      {summary.total > 0 && <NewBatchControl controller={controller} state={state} />}
       <section className="secondary-section"><button className="disclosure" aria-expanded={details} aria-controls="file-details" onClick={() => setDetails(!details)}>
         <span><ListFilter size={20} />Files &amp; failures <span className="count-label">{summary.total.toLocaleString()}</span></span><ChevronDown size={20} className={details ? 'rotated' : ''} /></button>
         {details && <div id="file-details"><FileDetails controller={controller} state={state} /></div>}</section>
       <section className="secondary-section"><button className="disclosure" aria-expanded={settings} aria-controls="recovery-settings" onClick={() => setSettings(!settings)}>
         <span><ShieldCheck size={20} />Recovery &amp; device storage</span><ChevronDown size={20} className={settings ? 'rotated' : ''} /></button>
         {settings && <div id="recovery-settings" className="storage-settings"><p className="storage-state"><ShieldCheck size={18} />{state.storageMessage}</p>
-          <p className="small muted">The saved list contains upload records, not your photos or videos. After reopening, select your originals again and reconnect the same account. Uploads cannot continue while this page is closed.</p>
+          <p className="small muted">Keep this page open until the batch finishes. The saved list contains records, not your photos or videos. If file access is lost, reconnecting originals is an optional recovery step, not guaranteed recovery. Uploads cannot continue while this page is closed.</p>
           {summary.remaining > 0 && <FilePicker id="replace-sources" label="Reconnect original files" recovery disabled={sourceDisabled} onFiles={files => void controller.reconnectSources(files)} />}
           <button className="button secondary" disabled={!state.ready || state.busy} onClick={() => void controller.protectStorage()}><ArrowDownToLine size={18} />Request storage protection</button>
           <p className="small" role="status">{state.retentionMessage || 'Optional. The browser decides whether to protect saved records from automatic cleanup. This does not preserve access to your media.'}</p>

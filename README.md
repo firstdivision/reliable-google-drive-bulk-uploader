@@ -6,6 +6,21 @@ A planned mobile-first, static web app for uploading large photo/video batches d
 
 **Phase 4 mobile dashboard implemented; real-device dashboard validation is next.** Open [BatchHarbor](https://batchharbor.killfly.com/app/) after deployment and follow the [Phase 4 checklist](docs/phase-4-testing.md). Phase 3 recovery received a [user-reported pass](docs/phase-3-testing.md#reported-results---2026-09-13); this is not proof of production-scale or all lifecycle reliability. [iPhone observations](docs/phase-0-iphone-16-pro-ios-26.6.1.md) retain the selected-tab restoration limitation.
 
+**Browser-only by choice:** keep the upload page open and active until the batch
+finishes. Pause/resume and retries work while the originals remain accessible.
+Recovery after closing/reloading or losing file access is best-effort: saved
+records do not preserve access to your photos. Reselecting originals is an
+optional fallback, not the expected workflow for thousands of files. Keep Awake
+does not guarantee continued execution. Startup now has a 15-second deadline with
+a stage-specific error and non-destructive reload. The cause of the reported
+phone stall still needs device evidence; see the [device notes](docs/phase-4-testing.md).
+
+**Start new batch** appears below the upload controls when a batch has records.
+Pause first, inspect Drive, then explicitly confirm clearing local recovery and
+duplicate-prevention history. No originals or Drive files are deleted, but uploading
+the same files again may create duplicates. Reset is unavailable until saved storage
+opens safely; it does not bypass a startup failure.
+
 - `phase0/index.html`: metadata-only picker baseline with count, exact total bytes, and paginated filenames/types/sizes. No file-content reads.
 - `phase0/experiments.html`: separate, explicit 64 KiB readability checks and Screen Wake Lock controls.
 - Neither page uploads or persists media or selection metadata. Both use local assets only and block script network connections with Content Security Policy.

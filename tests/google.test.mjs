@@ -70,6 +70,21 @@ test('first authorization after reload must match the saved Drive account', asyn
   assert.equal(fixture.auth.getToken(), 'test-token');
 });
 
+test('explicit account reset is forbidden while connecting or bound to a saved account', async () => {
+  let expected = null;
+  const fixture = authFixture({ getExpectedAccountId: () => expected });
+  const connection = fixture.auth.connect();
+  assert.throws(() => fixture.auth.resetAccount(), /Cannot reset/);
+  await fixture.respond(); await connection;
+  expected = 'original';
+  assert.throws(() => fixture.auth.resetAccount(), /Cannot reset/);
+  assert.equal(fixture.auth.user.permissionId, 'original');
+  expected = null;
+  fixture.auth.resetAccount();
+  assert.equal(fixture.auth.user, null);
+  assert.throws(() => fixture.auth.getToken(), AuthRequiredError);
+});
+
 test('denied permission and popup close recover without accepting tokens', async () => {
   const f = authFixture();
   let promise = f.auth.connect();
@@ -131,4 +146,6 @@ test('conflicting folder identity is never accepted as a destination', async () 
   } });
   await assert.rejects(folders.create('Test'), /Could not verify/);
   assert.equal(folders.pendingName, 'Test');
+  folders.resetPending();
+  assert.equal(folders.pendingName, null);
 });

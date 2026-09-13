@@ -694,6 +694,22 @@ Keep upload logic independent of React UI.
 
 ### Phase 3 — Persistence / Recovery
 
+Product decision (2026-09-13, after initial Phase 4 testing): the user explicitly
+chose to keep the browser-only application rather than pursue a native app.
+The primary workflow is select a batch, upload, and keep the page open and active
+until completion. Wake Lock is a best-effort aid, not an execution guarantee.
+Same-session pause/resume, transient-failure recovery, confirmed progress, and
+duplicate prevention remain core requirements while source access is available.
+
+Recovery after reload, tab closure, or lost source access is best-effort, not a
+core reliability promise. Reconstructing a selection of thousands of originals
+is not an acceptable normal workflow. Retain saved metadata and optional source
+reconnection for cases where it is practical, but do not present metadata as
+durable access to media or require users to rely on reselection for large batches.
+This decision clarifies the recovery scope of earlier phase requirements; it does
+not authorize removing persistence, clearing old batches automatically, staging
+media, adding a backend, or deleting source/Drive files.
+
 Implementation status (2026-09-13): implemented in the existing `phase2/` batch
 page and modules, keeping the deployment URL stable. The plain-JavaScript engine
 remains independent of UI; the React/TypeScript dashboard is still Phase 4.
@@ -780,7 +796,21 @@ Accepted implementation decisions:
   alone allows local WebSockets and inline stylesheet injection. CI installs locked
   dependencies, runs tests/typecheck/lint, builds static assets, and publishes `/app/`.
 - One saved batch, fixed destination, and completed deduplication records remain.
-  Batch history/reset and destructive operations are not introduced in this UI phase.
+  Batch history is not introduced. Following explicit user approval on 2026-09-13,
+  **Start new batch** may discard that batch's local records only after confirmation
+  of lost recovery/duplicate-prevention history and a warning to inspect Drive.
+  It requires successful startup, exclusive writer ownership, no active uploads,
+  and no other controller operation. Pending saves drain before an empty snapshot
+  commits atomically. Only then are in-memory queue, account binding, destination,
+  and pending folder identity replaced. Save failure keeps the old queue. Cleanup
+  waits for reset writes and cannot repersist the old batch after a committed reset.
+  Originals and remote Drive files are never deleted; reset makes no Google request.
+- Startup has a 15-second deadline covering lock acquisition and storage open/read.
+  Timeout names the pending stage and leaves uploads/reset disabled, with a
+  **Reload saved batch** action. Late responses cannot restore records, install
+  persistence, or enable uploads in the failed controller. No automatic data reset
+  or unsafe lock bypass is allowed. Browser suspension or a blocked main thread can
+  delay the timer; this is not a native watchdog or proof of the phone stall's cause.
 
 See [Phase 4 testing](docs/phase-4-testing.md) for verification and remaining device
 checks. User-reported Phase 3 results do not constitute a pass for the new dashboard.

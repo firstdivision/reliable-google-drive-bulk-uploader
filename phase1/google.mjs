@@ -28,6 +28,11 @@ export class GoogleAuth {
   }
   get user() { return this.#user; }
   invalidate() { this.#token = null; this.#expiresAt = 0; }
+  resetAccount() {
+    if (this.#connecting || this.getExpectedAccountId()) throw new Error('Cannot reset Google identity while connecting or bound to a saved batch.');
+    this.invalidate();
+    this.#user = null;
+  }
   getToken() {
     if (!this.#token || this.now() >= this.#expiresAt) {
       this.invalidate();
@@ -94,6 +99,10 @@ export class DriveFolders {
     this.fetchImpl = fetchImpl;
   }
   get pendingName() { return this.#pending?.name ?? null; }
+  resetPending() {
+    if (this.#creating) throw new Error('Wait for folder creation to finish before resetting.');
+    this.#pending = null;
+  }
   async request(path, options = {}) {
     const response = await this.fetchImpl(API + path, {
       ...options, cache: 'no-store', redirect: 'error',

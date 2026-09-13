@@ -119,6 +119,12 @@ progress::-moz-progress-bar { background: var(--green); }
 .storage-settings { padding-bottom: 20px; }
 .storage-settings .button, .storage-settings .file-picker { margin: 8px 10px 8px 0; }
 .storage-state { font-size: 13px; display: flex; align-items: center; gap: 10px; }
+.new-batch-section { padding: 22px 0; border-bottom: 1px solid var(--line); }
+.new-batch-section p { font-size: 14px; }
+.reset-confirm { display: flex; align-items: center; gap: 12px; min-height: 48px; line-height: 1.5; padding: 12px 0; }
+.reset-confirm input[type=checkbox] { width: 24px; height: 24px; min-height: 24px; flex: 0 0 24px; accent-color: var(--green); }
+.reset-actions { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 12px; }
+.reset-actions .button { max-width: 100%; }
 footer { padding: 26px 0 10px; color: var(--muted); font-size: 11px; display: flex; gap: 20px; align-items: center; justify-content: space-between; }
 footer > span { display: flex; gap: 6px; align-items: center; }
 footer nav { display: flex; gap: 16px; }

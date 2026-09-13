@@ -65,10 +65,12 @@ export interface DashboardAuth {
   connect(): Promise<DashboardAccount>;
   getToken(): string;
   invalidate(): void;
+  resetAccount(): void;
 }
 export interface DashboardFolders {
   list(): Promise<DashboardFolder[]>;
   create(name: string): Promise<DashboardFolder>;
+  resetPending?(): void;
 }
 export interface DashboardStore {
   open(): Promise<unknown>;
@@ -89,6 +91,7 @@ export interface DashboardQueue {
   readonly saving: Promise<unknown> | null;
   saveSnapshot: ((snapshot: unknown) => Promise<unknown>) | null;
   restore(snapshot: unknown): void;
+  snapshot(): unknown;
   add(files: File[]): { added: number; duplicates: number; rejected: number };
   reconnectSources(files: File[]): Promise<{ matched: number; skipped: number; unmatched: number; ambiguous: number; mismatched: number }>;
   start(folderId?: string): void;
@@ -132,6 +135,7 @@ export interface DashboardControllerOptions {
   window?: DashboardWindow;
   navigator?: DashboardNavigator;
   queueFactory?: (options: DashboardQueueOptions) => DashboardQueue;
+  startupTimeoutMs?: number;
 }
 
 const messageOf = (error: unknown): string => error instanceof Error ? error.message : 'The operation failed. Try again.';
@@ -141,7 +145,9 @@ export class DashboardController {
   private readonly auth: DashboardAuth;
   private readonly foldersApi: DashboardFolders;
   private readonly store: DashboardStore;
-  private readonly queue: DashboardQueue;
+  private queue: DashboardQueue;
+  private readonly createQueue: () => DashboardQueue;
+  private resetting = false;
   private readonly locks?: DashboardLockManager;
   private readonly document?: DashboardDocument;
   private readonly window?: DashboardWindow;
@@ -163,6 +169,9 @@ export class DashboardController {
   private accountLabel = '';
   private disposed = false;
   private initialization?: Promise<void>;
+  private readonly startupTimeoutMs: number;
+  private startupStopped = false;
+  private finishStartup?: () => void;
   private disposal?: Promise<void>;
   private lockTask?: Promise<unknown>;
   private releaseWriter?: () => void;
@@ -174,6 +183,7 @@ export class DashboardController {
   private resumeWake = false;
 
   constructor(options: DashboardControllerOptions = {}) {
+    this.startupTimeoutMs = options.startupTimeoutMs ?? 15000;
     this.document = options.document ?? globalThis.document;
     this.window = options.window ?? globalThis.window;
     this.navigator = options.navigator ?? globalThis.navigator;
@@ -188,8 +198,9 @@ export class DashboardController {
       getAccountId: () => this.auth.user?.permissionId ?? null,
       onChange: () => this.queueChanged(),
     };
-    this.queue = options.queueFactory ? options.queueFactory(queueOptions)
+    this.createQueue = () => options.queueFactory ? options.queueFactory(queueOptions)
       : new (UploadQueue as unknown as new (options: DashboardQueueOptions) => DashboardQueue)(queueOptions);
+    this.queue = this.createQueue();
     const supported = Boolean(this.window?.isSecureContext && this.navigator?.wakeLock?.request);
     this.wake = { supported, enabled: false, active: false, message: supported ? 'Supported; currently off.'
       : 'Unavailable. Use HTTPS and a supporting browser, or keep the screen awake manually.' };
@@ -254,32 +265,43 @@ export class DashboardController {
     let initialized!: () => void;
     this.initialization = new Promise(resolve => { initialized = resolve; });
     const held = new Promise<void>(resolve => { this.releaseWriter = resolve; });
+    let stage = 'acquiring the batch tab lock';
+    const deadline = setTimeout(() => {
+      this.startupFailed(new Error(`Startup timed out while ${stage}. Close other BatchHarbor tabs, then reload. If it repeats, report this stage; do not clear website data to retry.`));
+    }, this.startupTimeoutMs);
+    this.finishStartup = () => { clearTimeout(deadline); initialized(); };
     try {
       if (!this.locks?.request) throw new Error('This browser cannot safely lock the saved queue. Use a current browser over HTTPS.');
       this.lockTask = this.locks.request('batchharbor-queue-writer', { ifAvailable: true }, async lock => {
+        if (this.disposed || this.startupStopped) return;
         if (!lock) throw new Error('This batch is open in another tab. Close that tab, then reload this page.');
-        if (this.disposed) return;
+        stage = 'opening browser queue storage';
         await this.store.open();
-        if (this.disposed) return;
+        if (this.disposed || this.startupStopped) { this.store.close(); return; }
+        stage = 'reading the saved batch';
         const saved = await this.store.load();
-        if (this.disposed) return;
+        if (this.disposed || this.startupStopped) { this.store.close(); return; }
+        stage = 'validating the saved batch';
         if (saved !== null) this.queue.restore(saved);
         this.queue.saveSnapshot = snapshot => this.store.save(snapshot);
         this.ready = true;
         this.busy = false;
         this.emit();
-        initialized();
+        this.finishStartup?.();
         await held;
-      }).catch(error => { this.startupFailed(error); }).finally(initialized);
+      }).catch(error => { this.startupFailed(error); }).finally(() => this.finishStartup?.());
     } catch (error) {
       this.startupFailed(error);
-      initialized();
     }
     return this.initialization;
   }
 
   private startupFailed(error: unknown): void {
-    if (this.disposed) return;
+    if (this.disposed || this.startupStopped) return;
+    this.startupStopped = true;
+    this.finishStartup?.();
+    this.store.close();
+    this.releaseWriter?.();
     this.startupError = `${messageOf(error)} Saved data has not been replaced. Reload to retry.`;
     this.ready = false;
     this.busy = true;
@@ -413,7 +435,7 @@ export class DashboardController {
   }
 
   pause(): void {
-    if (!this.ready || this.disposed) return;
+    if (!this.ready || this.disposed || this.resetting) return;
     this.queue.pause();
     this.emit();
   }
@@ -432,6 +454,40 @@ export class DashboardController {
       if (!this.queue.remove(id)) throw new Error('Only unstarted files can be removed from this queue.');
       this.selectionMessage = 'Removed from this queue only. No source or Drive files were deleted.';
     });
+  }
+
+  async startNewBatch(confirmed: boolean): Promise<boolean> {
+    let replaced = false;
+    await this.asyncAction(async () => {
+      if (!confirmed) throw new Error('Confirm that you checked Drive and accept losing saved recovery and duplicate-prevention history.');
+      this.requireIdle();
+      this.resetting = true;
+      try {
+        await this.trackWrite((async () => {
+          const previous = this.queue;
+          if (previous.saving) await previous.saving.catch(() => {});
+          if (this.disposed) return;
+          await this.store.open();
+          if (this.disposed) return;
+          const next = this.createQueue();
+          await this.store.save(next.snapshot());
+          previous.saveSnapshot = null;
+          this.queue = next;
+          next.saveSnapshot = snapshot => this.store.save(snapshot);
+          this.auth.resetAccount();
+          this.foldersApi.resetPending?.();
+          this.connected = false;
+          this.lastAuthRequired = false;
+          this.folderId = '';
+          this.folders = [];
+          this.accountLabel = '';
+          this.selectionMessage = '';
+          this.actionMessage = 'New batch ready. Previous local recovery records were cleared. No originals or Drive files were deleted.';
+          replaced = true;
+        })());
+      } finally { this.resetting = false; }
+    }, false);
+    return replaced;
   }
 
   retryStorage(): Promise<void> {
@@ -547,6 +603,12 @@ export class DashboardController {
   dispose(): Promise<void> {
     if (this.disposal) return this.disposal;
     this.disposed = true;
+    if (!this.ready) {
+      this.startupStopped = true;
+      this.finishStartup?.();
+      this.store.close();
+      this.releaseWriter?.();
+    }
     if (this.renderTimer !== undefined) clearTimeout(this.renderTimer);
     this.listeners.clear();
     this.window?.removeEventListener('pagehide', this.pagehide);
@@ -559,7 +621,7 @@ export class DashboardController {
     this.wakeSentinel = null;
     this.wake.active = false;
     if (previous) void this.releaseWake(previous);
-    if (this.ready) this.queue.pause();
+    if (this.ready && !this.resetting) this.queue.pause();
     this.disposal = (async () => {
       await this.initialization;
       await Promise.allSettled([...this.writes]);
@@ -573,7 +635,7 @@ export class DashboardController {
       this.queue.saveSnapshot = null;
       this.store.close();
       this.releaseWriter?.();
-      await this.lockTask;
+      if (!this.startupStopped) await this.lockTask;
       await this.wakeTask;
       await Promise.all([...this.wakeReleases]);
       this.auth.invalidate();

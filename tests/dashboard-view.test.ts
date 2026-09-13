@@ -30,6 +30,7 @@ test('restored dashboard prominently exposes source reselection and account reco
   assert.match(html, /Resume is unavailable until you select the originals again/);
   assert.match(html, /1,000 of 5,000 files complete/);
   assert.equal(detailsReads, 0, 'closed details do not copy the 5,000-file list');
+  assert.match(html, /Start new batch/);
 });
 
 test('startup failure and offline status are visible without private HTML injection', () => {
@@ -37,6 +38,10 @@ test('startup failure and offline status are visible without private HTML inject
   assert.match(html, /Connection interrupted/);
   assert.match(html, /&lt;script&gt;private&lt;\/script&gt;/);
   assert.doesNotMatch(html, /<script>private/);
+  assert.match(html, /Batch unavailable/);
+  assert.match(html, /Reload saved batch/);
+  assert.match(html, /Reloading does not clear saved records/);
+  assert.match(html, /<button class="button secondary" disabled="">.*?Start new batch/);
 });
 
 test('wake control distinguishes requested state from actual acquisition', () => {
