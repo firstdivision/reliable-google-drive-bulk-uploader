@@ -58,7 +58,7 @@ styles for Google's Picker UI, but inline scripts and `unsafe-eval` remain block
 ## Existing Drive folders
 
 Connect Google, then use **Browse Google Drive** to select an existing folder you
-own, including folders not previously used with BatchHarbor. The selected folder
+own or that is shared with you, including folders not previously used with BatchHarbor. The selected folder
 is checked for permission to add files. The existing dropdown remains a shortcut
 for already authorized folders. No broader OAuth scope is requested: Picker grants
 access to the chosen folder under `drive.file`, not all existing files inside it.

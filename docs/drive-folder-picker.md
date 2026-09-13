@@ -1,7 +1,8 @@
 # Existing Google Drive folders
 
-Implemented for the `/app/` dashboard on 2026-09-13. Google Cloud configuration
-and real authenticated Picker testing are required before calling it deployed-ready.
+Implemented for the `/app/` dashboard on 2026-09-13. The user reports configuring
+Google Cloud, redeploying, and successfully browsing owned folders. The subsequent
+shared-folder change still needs real-account verification.
 The Phase 1/2 harness dropdowns remain limited to app-authorized folders.
 
 ## Configuration
@@ -24,8 +25,12 @@ Changes to variables require a new build/deployment, not just a browser reload.
 - **Browse Google Drive** uses the already authorized account's token. No second
   OAuth flow, broader Drive scope, or independent account switch is added.
 - The Google view includes folders, enables folder selection, filters to folder
-  MIME type and user ownership, and uses list mode. There is no upload view or
-  multi-select feature. Own nested folders need not have been created by this app.
+  MIME type, and uses list mode. The ownership filter is unset, which Google's
+  documentation specifies includes both owned and shared documents. There is no
+  upload view or multi-select feature. Nested folders need not have been created
+  by this app. Read-only folders may appear but fail the upload permission check.
+  "Shared with me" is distinct from Workspace Shared drives; this change does not
+  introduce a dedicated Shared drives view or shared-drive upload support.
 - Google Picker grants per-item access with `drive.file`. Authenticated `files.get`
   then verifies the chosen folder is real, not trashed, and writable for children.
   A selection is not permission to list/read all existing descendants.
@@ -44,7 +49,7 @@ Changes to variables require a new build/deployment, not just a browser reload.
 
 ## Verification
 
-Automated tests cover owned-folder Picker configuration, missing configuration,
+Automated tests cover ownership-unfiltered Picker configuration, missing configuration,
 scope/token preservation, cancellation, loader failure, invalid callback IDs,
 unwritable/non-folder/trashed selections, authentication failure, immutable batch
 destinations, and late replies after closing. Mocked responses do not establish
@@ -76,6 +81,9 @@ After configuring Cloud and deploying:
    not assumed from desktop tests or forced undersized setSize arguments.
 5. Check expiry or revoked folder access fails visibly, preserving the current
    destination. Confirm the browse action disables once uploading starts.
+6. Find a folder shared with your signed-in account with permission to add files.
+  Select it and verify one small upload arrives there. A read-only shared folder
+  must be rejected without changing the previous destination.
 
 ## Authoritative references
 

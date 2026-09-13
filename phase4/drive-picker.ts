@@ -4,7 +4,6 @@ interface PickerView {
   setSelectFolderEnabled(value: boolean): PickerView;
   setMimeTypes(value: string): PickerView;
   setMode(value: string): PickerView;
-  setOwnedByMe(value: boolean): PickerView;
 }
 interface PickerDialog { setVisible(value: boolean): void; dispose(): void }
 interface PickerBuilder {
@@ -108,7 +107,7 @@ export class GoogleFolderPicker implements FolderPicker {
         const view = new picker.DocsView(picker.ViewId.DOCS)
           .setIncludeFolders(true).setSelectFolderEnabled(true)
           .setMimeTypes('application/vnd.google-apps.folder')
-          .setMode(picker.DocsViewMode.LIST).setOwnedByMe(true);
+          .setMode(picker.DocsViewMode.LIST);
         dialog = new picker.PickerBuilder().setDeveloperKey(this.config.apiKey)
           .setAppId(this.config.appId).setOAuthToken(token).setOrigin(this.origin())
           .setTitle('Choose your upload folder').addView(view).setCallback(result => {

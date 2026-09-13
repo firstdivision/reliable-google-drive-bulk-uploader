@@ -29,11 +29,11 @@ function fixture() {
   return { picker, api, settings, reply: (result: Parameters<typeof callback>[0]) => callback(result), disposed: () => disposed };
 }
 
-test('Picker uses the current account and owned-folder-only list, never an upload view', async () => {
+test('Picker uses the current account and folder list without filtering out shared or owned folders', async () => {
   const harness = fixture();
   const result = harness.picker.pick(() => 'memory-token');
   await new Promise(resolve => setImmediate(resolve));
-  assert.deepEqual(harness.settings, { view: 'docs', folders: true, selectFolders: true, mime: 'application/vnd.google-apps.folder', mode: 'list', owned: true,
+  assert.deepEqual(harness.settings, { view: 'docs', folders: true, selectFolders: true, mime: 'application/vnd.google-apps.folder', mode: 'list',
     key: 'test-key', app: '123', token: 'memory-token', origin: 'https://example.test', title: 'Choose your upload folder', visible: true });
   await assert.rejects(harness.picker.pick(() => 'other'), /already open/);
   harness.reply({ action: 'picked', docs: [{ id: 'existing-folder' }] });

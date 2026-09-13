@@ -203,8 +203,10 @@ Requirements:
 
 The application should allow the user to choose a Google Drive destination folder.
 
-Decision (2026-09-13): use Google Picker for browsing arbitrary user-owned existing
-folders, retaining only `drive.file`. The REST dropdown cannot enumerate all Drive
+Decision (2026-09-13, expanded after user feedback): use Google Picker for browsing
+existing owned and "Shared with me" folders, retaining only `drive.file`.
+Leave the ownership filter unset so both are included, as documented by Google.
+The REST dropdown cannot enumerate all Drive
 folders under that scope; it remains a shortcut for already authorized folders.
 Picker uses the current account's in-memory token, a folder-only list view, and
 single selection. After selection, verify `files.get` metadata: matching ID, folder
@@ -215,7 +217,10 @@ Browse is available only before a batch's destination is fixed. Cancellation,
 verification failure, and late callbacks after disposal cannot replace the current
 destination. Missing API-key/project-number configuration is shown explicitly;
 Google Cloud setup and real Picker/device checks remain external prerequisites.
-Shared-drive browsing is not introduced by this owned-folder request.
+The user reports configuring and redeploying Picker successfully for owned folders.
+Shared-folder selection still needs a real-account check. "Shared with me" folders
+are distinct from Workspace Shared drives; a dedicated Shared drives view and
+shared-drive upload support are not introduced by this change.
 
 The dashboard CSP adds `apis.google.com` scripts and `docs.google.com` frames.
 Google's hosted Picker module injects inline CSS, so dashboard `style-src` allows
