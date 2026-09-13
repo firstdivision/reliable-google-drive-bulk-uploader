@@ -390,6 +390,78 @@ test('committed reset permits another account using the real GoogleAuth identity
   await harness.controller.dispose();
 });
 
+test('Drive browser verifies the chosen folder and preserves destination on cancel or rejection', async () => {
+  let selection: string | null = 'existing';
+  let fail = false;
+  const calls: string[] = [];
+  const harness = fixture({
+    picker: { pick: async getToken => { assert.equal(getToken(), 'memory-only-token'); return selection; }, cancel() {} },
+    folders: { list: async () => [{ id: 'folder', name: 'Known' }], create: async name => ({ id: 'new', name }),
+      get: async id => { calls.push(id); if (fail) throw new Error('Cannot add files here'); return { id, name: 'Verified existing folder' }; } },
+  });
+  await harness.setup();
+  await harness.controller.browseFolders();
+  assert.equal(harness.snapshot().folderId, 'existing');
+  assert.equal(harness.snapshot().folderName, 'Verified existing folder');
+  assert.deepEqual(calls, ['existing']);
+  selection = null;
+  await harness.controller.browseFolders();
+  assert.equal(harness.snapshot().folderId, 'existing');
+  assert.match(harness.snapshot().actionMessage, /cancelled/);
+  selection = 'unwritable'; fail = true;
+  await harness.controller.browseFolders();
+  assert.equal(harness.snapshot().folderId, 'existing');
+  assert.match(harness.snapshot().actionMessage, /Cannot add files/);
+  harness.controller.start();
+  await harness.wait(() => harness.workers.some(worker => worker.running));
+  harness.controller.pause();
+  await harness.wait(() => harness.queue.active.size === 0);
+  await harness.controller.browseFolders();
+  assert.match(harness.snapshot().actionMessage, /same destination/);
+  assert.deepEqual(calls, ['existing', 'unwritable']);
+  await harness.controller.dispose();
+});
+
+test('closing a pending Drive browser cancels and ignores late selection', async () => {
+  const chosen = deferred<string | null>();
+  let cancellations = 0;
+  let verifications = 0;
+  const harness = fixture({ picker: { pick: () => chosen.promise, cancel: () => { cancellations++; } },
+    folders: { list: async () => [{ id: 'folder', name: 'Known' }], create: async name => ({ id: 'new', name }),
+      get: async id => { verifications++; return { id, name: 'Late' }; } } });
+  await harness.setup();
+  const browsing = harness.controller.browseFolders();
+  assert.equal(harness.snapshot().busy, true);
+  await harness.controller.dispose();
+  chosen.resolve('late-folder');
+  await browsing;
+  assert.equal(cancellations, 1);
+  assert.equal(verifications, 0);
+  assert.equal(harness.snapshot().folderId, 'folder');
+});
+
+test('cancelling folder verification promptly unblocks the dashboard and ignores a late result', async () => {
+  const verified = deferred<{ id: string; name: string }>();
+  const started = deferred();
+  let signal: AbortSignal | undefined;
+  const harness = fixture({ picker: { pick: async () => 'late', cancel() {} },
+    folders: { list: async () => [{ id: 'folder', name: 'Known' }], create: async name => ({ id: 'new', name }),
+      get: async (_id, options) => { signal = options?.signal; started.resolve(); return verified.promise; } } });
+  await harness.setup();
+  const browsing = harness.controller.browseFolders();
+  await started.promise;
+  harness.controller.cancelFolderBrowse();
+  await browsing;
+  assert.equal(signal?.aborted, true);
+  assert.equal(harness.snapshot().busy, false);
+  assert.equal(harness.snapshot().folderId, 'folder');
+  assert.match(harness.snapshot().actionMessage, /cancelled/);
+  verified.resolve({ id: 'late', name: 'Ignored folder' });
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(harness.snapshot().folderId, 'folder');
+  await harness.controller.dispose();
+});
+
 test('disposal during reset commit cannot persist the old queue after the empty snapshot', async () => {
   const harness = fixture();
   await harness.setup();

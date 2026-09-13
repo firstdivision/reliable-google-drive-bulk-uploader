@@ -30,6 +30,9 @@ jobs:
           cache: npm
       - run: npm ci
       - name: Check dashboard
+        env:
+          VITE_GOOGLE_PICKER_API_KEY: ${{ vars.GOOGLE_PICKER_API_KEY }}
+          VITE_GOOGLE_PICKER_APP_ID: ${{ vars.GOOGLE_PICKER_APP_ID }}
         run: |
           npm run typecheck
           npm run lint

@@ -1,6 +1,7 @@
 import { DriveFolders, GoogleAuth } from '../phase1/google.mjs';
 import { QueueStore } from '../phase2/queue-store.mjs';
 import { UploadQueue } from '../phase2/upload-queue.mjs';
+import type { FolderPicker } from './drive-picker';
 
 export type DashboardStatus = 'queued' | 'preparing' | 'uploading' | 'paused' | 'retrying' | 'failed' | 'completed';
 export interface DashboardItem {
@@ -70,6 +71,7 @@ export interface DashboardAuth {
 export interface DashboardFolders {
   list(): Promise<DashboardFolder[]>;
   create(name: string): Promise<DashboardFolder>;
+  get?(id: string, options?: { signal?: AbortSignal }): Promise<DashboardFolder>;
   resetPending?(): void;
 }
 export interface DashboardStore {
@@ -136,6 +138,7 @@ export interface DashboardControllerOptions {
   navigator?: DashboardNavigator;
   queueFactory?: (options: DashboardQueueOptions) => DashboardQueue;
   startupTimeoutMs?: number;
+  picker?: FolderPicker;
 }
 
 const messageOf = (error: unknown): string => error instanceof Error ? error.message : 'The operation failed. Try again.';
@@ -144,6 +147,8 @@ const isAuthError = (error: unknown): boolean => typeof error === 'object' && er
 export class DashboardController {
   private readonly auth: DashboardAuth;
   private readonly foldersApi: DashboardFolders;
+  private readonly picker?: FolderPicker;
+  private browseAbort?: AbortController;
   private readonly store: DashboardStore;
   private queue: DashboardQueue;
   private readonly createQueue: () => DashboardQueue;
@@ -183,6 +188,7 @@ export class DashboardController {
   private resumeWake = false;
 
   constructor(options: DashboardControllerOptions = {}) {
+    this.picker = options.picker;
     this.startupTimeoutMs = options.startupTimeoutMs ?? 15000;
     this.document = options.document ?? globalThis.document;
     this.window = options.window ?? globalThis.window;
@@ -403,6 +409,35 @@ export class DashboardController {
     });
   }
 
+  browseFolders(): Promise<void> {
+    return this.asyncAction(async () => {
+      this.requireIdle();
+      this.requireConnected();
+      if (this.queue.folderId) throw new Error('Once started, this batch keeps the same destination.');
+      if (!this.picker || !this.foldersApi.get) throw new Error('Google Drive browsing is unavailable on this site.');
+      const account = this.auth.user?.permissionId;
+      const abort = new AbortController();
+      this.browseAbort = abort;
+      const cancellation = new Promise<null>(resolve => abort.signal.addEventListener('abort', () => resolve(null), { once: true }));
+      try {
+        const id = await Promise.race([this.picker.pick(() => this.auth.getToken()), cancellation]);
+        if (this.disposed) return;
+        if (!id || abort.signal.aborted) { this.actionMessage = 'Folder selection cancelled. Destination unchanged.'; return; }
+        this.requireConnected();
+        if (account !== this.auth.user?.permissionId) throw new Error('Google account changed. Connect again before choosing a folder.');
+        const folder = await Promise.race([this.foldersApi.get(id, { signal: abort.signal }), cancellation]);
+        if (this.disposed) return;
+        if (!folder || abort.signal.aborted) { this.actionMessage = 'Folder selection cancelled. Destination unchanged.'; return; }
+        if (this.queue.folderId) throw new Error('Once started, this batch keeps the same destination.');
+        this.folders = [...this.folders.filter(current => current.id !== folder.id), folder];
+        this.folderId = folder.id;
+        this.actionMessage = 'Destination selected. Upload when ready.';
+      } finally { this.browseAbort = undefined; }
+    });
+  }
+
+  cancelFolderBrowse(): void { this.browseAbort?.abort(); this.picker?.cancel(); }
+
   private async loadFolders(): Promise<void> {
     const folders = await this.foldersApi.list();
     if (this.disposed) return;
@@ -603,6 +638,7 @@ export class DashboardController {
   dispose(): Promise<void> {
     if (this.disposal) return this.disposal;
     this.disposed = true;
+    this.cancelFolderBrowse();
     if (!this.ready) {
       this.startupStopped = true;
       this.finishStartup?.();

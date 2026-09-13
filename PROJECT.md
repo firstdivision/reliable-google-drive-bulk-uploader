@@ -203,7 +203,27 @@ Requirements:
 
 The application should allow the user to choose a Google Drive destination folder.
 
-Investigate whether Google Picker is the best folder-selection UX versus a lightweight Drive folder browser implemented through the REST API.
+Decision (2026-09-13): use Google Picker for browsing arbitrary user-owned existing
+folders, retaining only `drive.file`. The REST dropdown cannot enumerate all Drive
+folders under that scope; it remains a shortcut for already authorized folders.
+Picker uses the current account's in-memory token, a folder-only list view, and
+single selection. After selection, verify `files.get` metadata: matching ID, folder
+MIME type, not trashed, and `capabilities.canAddChildren`. Do not trust Picker names
+or infer access to every pre-existing descendant. No media upload view is added.
+
+Browse is available only before a batch's destination is fixed. Cancellation,
+verification failure, and late callbacks after disposal cannot replace the current
+destination. Missing API-key/project-number configuration is shown explicitly;
+Google Cloud setup and real Picker/device checks remain external prerequisites.
+Shared-drive browsing is not introduced by this owned-folder request.
+
+The dashboard CSP adds `apis.google.com` scripts and `docs.google.com` frames.
+Google's hosted Picker module injects inline CSS, so dashboard `style-src` allows
+`'unsafe-inline'`; this is a deliberate style-only relaxation, not an inline-script
+or eval exception. The module's changing hosted CSS makes a pinned stylesheet hash
+brittle; a hardcoded nonce is not a security solution. Script restrictions, Google-only
+connections, direct media transfer, and other harness policies remain intact.
+See [Google folder Picker setup, evidence, and tests](docs/drive-folder-picker.md).
 
 ---
 
@@ -790,10 +810,12 @@ Accepted implementation decisions:
 - A feature-detected switch controls Screen Wake Lock; actual acquisition/release is
   displayed separately from the requested setting. No background execution claim.
 - Fonts and icons are bundled locally (DM Sans/Manrope, OFL; Lucide, ISC; React/Vite,
-  MIT). No analytics, media storage, scope changes, CDN runtime dependencies, or
-  application backend. Added build dependencies are frontend tooling only.
+  MIT). No analytics, media storage, scope changes, or application backend. The later
+  existing-folder enhancement lazily loads Google's hosted Picker in addition to GIS.
+  Added build dependencies are frontend tooling only.
 - Production CSP retains Google-only connection destinations. Vite development
-  alone allows local WebSockets and inline stylesheet injection. CI installs locked
+  alone allows local WebSockets; inline styles are allowed for Picker as documented
+  above. CI installs locked
   dependencies, runs tests/typecheck/lint, builds static assets, and publishes `/app/`.
 - One saved batch, fixed destination, and completed deduplication records remain.
   Batch history is not introduced. Following explicit user approval on 2026-09-13,
@@ -813,7 +835,13 @@ Accepted implementation decisions:
   delay the timer; this is not a native watchdog or proof of the phone stall's cause.
 
 See [Phase 4 testing](docs/phase-4-testing.md) for verification and remaining device
-checks. User-reported Phase 3 results do not constitute a pass for the new dashboard.
+checks. On 2026-09-13, after deploying startup hardening and guarded reset, the user
+reported the deployed dashboard working well on their phone. This is an overall
+user-reported Phase 4 pass, not an instrumented or per-case validation. The exact
+revision, device/OS, batch size, and exercised failure paths were not supplied.
+The prior startup stall's cause remains unconfirmed; the latest report does not
+indicate a continuing blocker. Proceed with progressive keep-open tests beginning
+at 10 controlled files; do not infer production-scale or Android reliability.
 
 Build the batch-oriented dashboard.
 
@@ -827,7 +855,35 @@ Optimize for:
 
 ### Phase 5 — Stress Testing
 
-Test progressively:
+Progress (2026-09-13): after the keep-open test and requested Drive count/size/
+duplicate checks, the user reported "that all worked", then clarified "I uploaded
+195 files". This corrects the earlier assumed 10-file batch size and covers the
+100-file stage as a user-reported pass, not independently measured evidence.
+Exact bytes, duration, revision, and device/OS were not supplied for that batch.
+
+Further user-reported results (2026-09-13, deployed phone app):
+
+| Check | Reported result |
+| --- | --- |
+| Completed upload | 200 files, 3.32 GB as reported |
+| Start / initial estimate | 10:53am / 13 minutes |
+| Progress | 50% at 11:01am; 100% at 11:07am |
+| Elapsed time | Approximately 14 minutes; one minute longer than the initial estimate |
+| Drive verification | User verified 200 files uploaded |
+| Larger selection | 1,535 files successfully added to the queue after a long wait for the Photos picker to close |
+
+The 200-file report does not separately confirm content/size/duplicate checks for
+each file. The 1,535-file batch was not uploaded to completion; picker delay was
+not timed or diagnosed. Exact build, device/OS, media mix, and storage impact were
+not supplied. These are user reports, not agent-operated measurements.
+
+The user explicitly chose to defer further long-running upload tests and move on.
+Do not request another 1,000-file upload as a prerequisite for continued development.
+This is a decision to defer testing, not evidence of completed large-batch transfers
+or production safety. Next: review MVP readiness against the existing success
+criteria and document remaining release/platform risks without expanding features.
+
+Progressive targets (larger transfer stages deferred, not passed):
 
 - 10 files
 - 100 files

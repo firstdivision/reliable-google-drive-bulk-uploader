@@ -4,7 +4,7 @@ A planned mobile-first, static web app for uploading large photo/video batches d
 
 ## Current status
 
-**Phase 4 mobile dashboard implemented; real-device dashboard validation is next.** Open [BatchHarbor](https://batchharbor.killfly.com/app/) after deployment and follow the [Phase 4 checklist](docs/phase-4-testing.md). Phase 3 recovery received a [user-reported pass](docs/phase-3-testing.md#reported-results---2026-09-13); this is not proof of production-scale or all lifecycle reliability. [iPhone observations](docs/phase-0-iphone-16-pro-ios-26.6.1.md) retain the selected-tab restoration limitation.
+**The deployed phone app completed a user-reported 200-file, 3.32 GB upload in about 14 minutes.** A separate 1,535-file selection reached the queue after a long picker delay; that batch was not uploaded to completion. Further long upload tests are deferred at the user's request. Open [BatchHarbor](https://batchharbor.killfly.com/app/) and see the [results and checklist](docs/phase-4-testing.md). These reports do not establish production-scale reliability. [iPhone observations](docs/phase-0-iphone-16-pro-ios-26.6.1.md) retain the selected-tab restoration limitation.
 
 **Browser-only by choice:** keep the upload page open and active until the batch
 finishes. Pause/resume and retries work while the originals remain accessible.
@@ -12,8 +12,9 @@ Recovery after closing/reloading or losing file access is best-effort: saved
 records do not preserve access to your photos. Reselecting originals is an
 optional fallback, not the expected workflow for thousands of files. Keep Awake
 does not guarantee continued execution. Startup now has a 15-second deadline with
-a stage-specific error and non-destructive reload. The cause of the reported
-phone stall still needs device evidence; see the [device notes](docs/phase-4-testing.md).
+a stage-specific error and non-destructive reload. The latest deployed-phone test
+was reported working well; the earlier stall's cause remains unconfirmed. See the
+[device notes](docs/phase-4-testing.md).
 
 **Start new batch** appears below the upload controls when a batch has records.
 Pause first, inspect Drive, then explicitly confirm clearing local recovery and
@@ -51,8 +52,38 @@ npm run build
 
 The production dashboard is emitted to `dist/app/`. Pages assembles it with the
 homepage, policies, assets, and existing harnesses. Only the local Vite server
-permits inline styles and local WebSocket connections for development; the built
-page retains the restrictive production CSP.
+permits local WebSocket connections for development. The dashboard allows inline
+styles for Google's Picker UI, but inline scripts and `unsafe-eval` remain blocked.
+
+## Existing Drive folders
+
+Connect Google, then use **Browse Google Drive** to select an existing folder you
+own, including folders not previously used with BatchHarbor. The selected folder
+is checked for permission to add files. The existing dropdown remains a shortcut
+for already authorized folders. No broader OAuth scope is requested: Picker grants
+access to the chosen folder under `drive.file`, not all existing files inside it.
+The destination stays fixed once a batch starts; use Start new batch to change it.
+
+The site owner must configure Google Picker before the browsing button can work:
+
+1. In the same Google Cloud project as the current OAuth web client, enable
+	**Google Picker API** and **Google Drive API**.
+2. Create a browser API key with **Websites** application restrictions. Allow
+	`https://batchharbor.killfly.com/*` and `https://docs.google.com/*`, plus only
+	local origins you intend to test. Restrict the key to **Google Picker API** and
+	**Google Drive API**, as Google's current setup guide specifies.
+3. Find the numeric **project number** in Cloud project settings. This is the
+	Picker App ID, not the textual project ID or OAuth client ID.
+4. In GitHub repository **Settings > Secrets and variables > Actions > Variables**,
+	set `GOOGLE_PICKER_API_KEY` and `GOOGLE_PICKER_APP_ID`. Rebuild/redeploy Pages.
+	These are browser-visible configuration values, never an OAuth client secret.
+5. For local development, set `VITE_GOOGLE_PICKER_API_KEY` and
+	`VITE_GOOGLE_PICKER_APP_ID` in a root `.env.local` file using [.env.example](.env.example).
+	Restart Vite after changes. The OAuth client's authorized JavaScript origins
+	must also include the local origin for real sign-in.
+
+Without this configuration the app explains that browsing is unavailable; existing
+authorized folders and folder creation still work. See [Picker setup and checks](docs/drive-folder-picker.md).
 
 ## Run the harness
 
@@ -101,7 +132,7 @@ These use synthetic files and browser API doubles. They do not establish Safari 
 
 ## Roadmap and constraints
 
-Next: validate the Phase 4 dashboard on a small real-device batch → progressive Phase 5 stress tests. Recovery requires retained browser metadata, the original sources, and the original Google account; it does not provide background uploading. Saved records may be evicted or cleared. Android physical batch/recovery validation remains pending.
+Next: MVP readiness review against the existing success criteria. Further long upload tests are deferred, not marked passed. Recovery requires retained browser metadata, the original sources, and the original Google account; it does not provide background uploading. Saved records may be evicted or cleared. Android physical batch/recovery validation and larger completed transfers remain unverified.
 
 The intended application stack is React/TypeScript with Vite, IndexedDB, Google Identity Services, Drive REST API v3, and optional Screen Wake Lock. Media must travel directly to Google; completed files must stay completed across retries. Browser wake locks do not provide native background execution.
 

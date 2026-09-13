@@ -108,12 +108,21 @@ export class DriveFolders {
       ...options, cache: 'no-store', redirect: 'error',
       headers: { ...options.headers, Authorization: `Bearer ${this.auth.getToken()}` },
     });
+    if (options.signal?.aborted) throw options.signal.reason;
     if (response.status === 401) { this.auth.invalidate(); throw new AuthRequiredError(); }
     return response;
   }
   async checked(response) {
     if (!response.ok) throw new Error(`Drive folder request failed (HTTP ${response.status}). Check access and retry.`);
     return response.json();
+  }
+  async get(id, { signal } = {}) {
+    if (typeof id !== 'string' || !/^[a-zA-Z0-9_-]+$/.test(id)) throw new Error('Google did not return a valid folder ID.');
+    const folder = await this.checked(await this.request(`files/${encodeURIComponent(id)}?fields=id,name,mimeType,trashed,capabilities(canAddChildren)&supportsAllDrives=true`, { signal }));
+    if (folder.id !== id || typeof folder.name !== 'string' || folder.mimeType !== FOLDER || folder.trashed !== false || folder.capabilities?.canAddChildren !== true) {
+      throw new Error('Choose an existing folder where you have permission to add files.');
+    }
+    return { id: folder.id, name: folder.name };
   }
   // drive.file lists only app-created / explicitly app-authorized folders.
   async list() {

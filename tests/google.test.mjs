@@ -100,6 +100,36 @@ test('denied permission and popup close recover without accepting tokens', async
 const stubAuth = () => ({ getToken: () => 'test-token', invalidate() { this.invalidated = true; } });
 const folder = (id, name = 'Test') => ({ id, name, mimeType: 'application/vnd.google-apps.folder', trashed: false, capabilities: { canAddChildren: true } });
 
+test('selected folder is verified through Drive, not trusted picker metadata', async () => {
+  const calls = [];
+  const folders = new DriveFolders(stubAuth(), { fetchImpl: async url => { calls.push(url); return json(folder('chosen', 'Existing folder')); } });
+  assert.deepEqual(await folders.get('chosen'), { id: 'chosen', name: 'Existing folder' });
+  assert.match(calls[0], /files\/chosen\?fields=.*supportsAllDrives=true/);
+  for (const invalid of [{ mimeType: 'image/jpeg' }, { trashed: true }, { capabilities: { canAddChildren: false } }, { id: 'other' }]) {
+    folders.fetchImpl = async () => json({ ...folder('chosen'), ...invalid });
+    await assert.rejects(folders.get('chosen'), /permission to add files/);
+  }
+  await assert.rejects(folders.get('../outside'), /valid folder ID/);
+  folders.fetchImpl = async () => json({}, 401);
+  await assert.rejects(folders.get('chosen'), AuthRequiredError);
+});
+
+test('late cancelled folder verification cannot invalidate a reconnected token', async () => {
+  const auth = stubAuth();
+  const abort = new AbortController();
+  let respond;
+  const folders = new DriveFolders(auth, { fetchImpl: async (_url, options) => {
+    assert.equal(options.signal, abort.signal);
+    return new Promise(resolve => { respond = resolve; });
+  } });
+  const result = folders.get('chosen', { signal: abort.signal });
+  const rejected = assert.rejects(result, { name: 'AbortError' });
+  abort.abort();
+  respond(json({}, 401));
+  await rejected;
+  assert.equal(auth.invalidated, undefined);
+});
+
 test('folder listing follows empty pages and excludes non-writable destinations', async () => {
   const urls = [];
   const replies = [{ files: [], nextPageToken: 'page+2' }, { files: [folder('yes'), { ...folder('no'), capabilities: { canAddChildren: false } }] }];

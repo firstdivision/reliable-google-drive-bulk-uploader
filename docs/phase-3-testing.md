@@ -68,8 +68,11 @@ Reconnect the original Google account, then Resume or Retry Failed as appropriat
 Reselection and sign-in do not automatically start transfers. Available sources
 can resume while other entries still need sources; Add More remains disabled
 until all missing sources are resolved. The destination stays fixed for this
-saved batch, including after all files complete. Batch-history/reset management
-is deferred; clearing browser site data loses recovery and deduplication records.
+saved batch, including after all files complete. The newer `/app/` dashboard offers
+a guarded **Start new batch** action once storage opens safely and uploads stop.
+It explicitly discards local recovery and deduplication records, never originals
+or Drive files. Batch history remains deferred; clearing browser site data also
+loses recovery records. See [the dashboard checklist](phase-4-testing.md).
 
 Google's status probe, not the locally saved offset, determines where a restored
 session continues. For an expired session, the uploader first checks the reserved

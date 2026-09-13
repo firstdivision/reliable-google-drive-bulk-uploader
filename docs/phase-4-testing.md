@@ -1,13 +1,33 @@
 # Phase 4 mobile dashboard
 
 Status: implemented 2026-09-13; automated checks and synthetic desktop-browser
-workflow tests passed. Real iPhone/iPad and Android dashboard validation is pending.
+workflow tests passed. The deployed dashboard received an overall user-reported
+phone pass on 2026-09-13. Per-case device coverage and Android validation remain pending.
 
 ## Latest user feedback - 2026-09-13
 
-The user reported the phone remaining at "Before you continue / Opening saved
-batch". The cause is not established and no successful workaround was reported.
-This is an unresolved startup issue, not a passing device test.
+The user initially reported the phone remaining at "Before you continue / Opening
+saved batch". After deployment of startup hardening and guarded batch reset, the
+user reported: "I tried it on my phone from the deployed site. It is working well."
+
+Record this as an overall user-reported deployed-phone pass. The latest report
+does not indicate a continuing startup blocker, but it does not establish the
+original cause or prove which change addressed it. The exact revision, phone/OS,
+file count/bytes, and individual reset, retry, wake, and failure-path results were
+not supplied. Do not infer large-batch, all-lifecycle, iPad, or Android coverage.
+Follow-up: after the keep-open test, including requested Drive count, size, and
+duplicate checks, the user reported "that all worked", then clarified "I uploaded
+195 files". Use 195 as the actual reported batch size, not the previously assumed
+10 files. This covers the 100-file stage as a user-reported pass; no exact byte
+total, duration, or per-file measurements were supplied for that batch.
+
+The next test completed 200 files (3.32 GB reported): start 10:53am, initial estimate
+13 minutes, 50% at 11:01am, and 100% at 11:07am. The user verified 200 files uploaded.
+Elapsed time was approximately 14 minutes. Separately, 1,535 files reached the
+queue after a long, unmeasured wait for the Photos picker to close. That batch was
+not uploaded to completion. See [Phase 5 results](../PROJECT.md#phase-5--stress-testing).
+The user chose to defer further long upload tests and move on to MVP readiness;
+large-selection success is not a completed-transfer or storage-safety pass.
 
 Startup hardening now stops the wait after 15 seconds of runnable browser time and
 reports the pending stage: acquiring the tab lock, opening browser queue storage,
@@ -120,7 +140,9 @@ and touch verification remain pending. No real Google upload was performed.
 
 Vite emits `dist/app/`. The Pages workflow adds that directory to the existing
 static deployment. Node 22 is pinned in CI. The development-only CSP accommodation
-is absent from the production HTML; inspect the built page for CSP regressions.
+for local WebSockets is absent from production HTML. The subsequent Google folder
+Picker enhancement permits inline styles in the dashboard for Google's injected
+CSS; scripts remain strict. See [Picker setup and verification](drive-folder-picker.md).
 
 ## Browser evidence and limitations
 
@@ -141,6 +163,13 @@ Real touch ergonomics and device wake behavior remain manual checks.
 The documented Vite development startup was also exercised: local fonts and logo
 loaded and a normal pointer click opened the storage controls without resizing.
 
-The previously documented real GIS inline-style CSP warning remains; production
-policy was not weakened. Real Google OAuth on the deployed origin must be retested.
-Phase 3's user-reported pass is not a physical-device pass for the React dashboard.
+The subsequent Google Picker integration deliberately permits inline styles in
+production for Google's hosted dialog, while keeping inline scripts prohibited.
+The real unauthenticated Picker library loaded without observed CSP violations;
+authenticated dialog behavior still needs verification. See
+[Drive folder picker](drive-folder-picker.md) for the policy and test evidence.
+User-reported uploads on the deployed dashboard establish working sign-in for the
+reporting account, not unrestricted OAuth audience access. Console publishing,
+test-user restrictions, and applicable verification status must be checked before
+broader sharing. The newer phone results are recorded above separately from the
+earlier Phase 3 and mocked-browser evidence.

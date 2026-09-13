@@ -50,6 +50,8 @@ main { max-width: 840px; margin: auto; padding: 35px 28px 20px; }
 .account-row { display: flex; justify-content: space-between; align-items: center; gap: 16px; margin-bottom: 22px; }
 .account-row strong { display: block; font-size: 14px; overflow-wrap: anywhere; }
 .field-caption { font-size: 12px; color: var(--muted); display: block; margin-bottom: 5px; }
+.destination-fields > .button { margin-bottom: 18px; }
+.destination-fields > label { display: block; }
 label:not(.file-picker) { font-size: 13px; font-weight: 600; }
 .folder-input { display: flex; align-items: center; gap: 12px; margin-top: 8px; }
 select, input:not([type=file]) { background: white; border: 1px solid #becfc4; border-radius: 6px; padding: 10px 12px; color: var(--ink); width: 100%; min-width: 0; }

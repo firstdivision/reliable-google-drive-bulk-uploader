@@ -35,6 +35,7 @@ function WakeControl({ controller, state }: Props & { state: DashboardSnapshot }
 
 function Destination({ controller, state }: Props & { state: DashboardSnapshot }) {
   const [creating, setCreating] = useState(false);
+  const [browsing, setBrowsing] = useState(false);
   const [name, setName] = useState('');
   const pinned = state.destinationLocked;
   const disabled = !state.ready || state.busy || !state.connected || pinned;
@@ -43,6 +44,12 @@ function Destination({ controller, state }: Props & { state: DashboardSnapshot }
       <strong>{state.connected ? state.accountLabel : 'Not connected'}</strong></div>
       <button className="button secondary" disabled={!state.ready || state.busy || state.summary.active > 0 || state.summary.enabled}
         onClick={() => void controller.connect()}><Link2 size={17} aria-hidden="true" />{state.connected ? 'Reconnect' : 'Connect Google'}</button></div>
+    <button className="button secondary" disabled={disabled} onClick={() => {
+      setBrowsing(true);
+      void controller.browseFolders().finally(() => setBrowsing(false));
+    }}><Folder size={18} />Browse Google Drive</button>
+    {browsing && <div role="status"><p className="small">Opening Google Drive folder selection...</p>
+      <button className="text-button" onClick={() => controller.cancelFolderBrowse()}>Cancel folder selection</button></div>}
     <label htmlFor="destination">Destination folder</label>
     <div className="folder-input"><Folder size={20} aria-hidden="true" />
       <select id="destination" disabled={disabled} value={state.folderId} onChange={event => controller.chooseFolder(event.target.value)}>
@@ -63,7 +70,7 @@ function Destination({ controller, state }: Props & { state: DashboardSnapshot }
       <input id="new-folder-name" value={name} onChange={event => setName(event.target.value)} maxLength={150} disabled={disabled} required />
       <button className="button secondary" disabled={disabled || !name.trim()} type="submit">Create</button>
     </div></form>}
-    <p className="small muted">Only folders available to BatchHarbor are listed. The destination stays fixed once uploading starts.</p>
+    <p className="small muted">Browse your existing Drive folders, or choose a previously authorized folder above. The destination stays fixed once uploading starts.</p>
   </div>;
 }
 
