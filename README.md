@@ -27,7 +27,7 @@ opens safely; it does not bypass a startup failure.
 - Neither page uploads or persists media or selection metadata. Both use local assets only and block script network connections with Content Security Policy.
 - `phase1/`: Google authorization, app-accessible destination folders, and a one-file resumable upload with pause and interruption recovery. State is limited to the current tab.
 - `phase2/`: multi-file queue with two concurrent uploads, selection deduplication, batch pause/resume, Retry Failed, and aggregate confirmed progress. Phase 3 adds IndexedDB metadata, original-account binding, source reselection with bounded fingerprints, durable identity checkpoints, and an exclusive cross-tab lock. Media and tokens are never persisted. The basic mobile test page reuses Phase 1's protocol, authentication, and wake lock.
-- `phase4/`: React/TypeScript dashboard built with Vite to `/app/`, with setup/progress views, explicit source/account recovery, confirmed-byte ETA, Keep Awake toggle, and bounded file details. It shares the Phase 2 queue and saved database; close the test page before opening the dashboard.
+- `phase4/`: React/TypeScript dashboard built with Vite to `/app/`, with a two-step checklist, aggregate progress, confirmed-byte ETA, Keep Awake toggle, and bounded file details. Destination has its own Google connection/Picker view; storage and guarded batch reset are in Settings. It shares the Phase 2 queue and saved database; close the test page before opening the dashboard.
 
 ## Run the dashboard
 
@@ -57,12 +57,14 @@ styles for Google's Picker UI, but inline scripts and `unsafe-eval` remain block
 
 ## Existing Drive folders
 
-Connect Google, then use **Browse Google Drive** to select an existing folder you
+Open **Destination folder** from the main checklist, connect Google, then use
+**Browse Google Drive** to select an existing folder you
 own or that is shared with you, including folders not previously used with BatchHarbor. The selected folder
-is checked for permission to add files. The existing dropdown remains a shortcut
-for already authorized folders. No broader OAuth scope is requested: Picker grants
+is checked for permission to add files. The dashboard uses Picker only, with no
+folder dropdown. No broader OAuth scope is requested: Picker grants
 access to the chosen folder under `drive.file`, not all existing files inside it.
-The destination stays fixed once a batch starts; use Start new batch to change it.
+Return to the batch to upload. The destination stays fixed once a batch starts;
+use **Settings > Start new batch** to change it.
 
 The site owner must configure Google Picker before the browsing button can work:
 
@@ -82,8 +84,9 @@ The site owner must configure Google Picker before the browsing button can work:
 	Restart Vite after changes. The OAuth client's authorized JavaScript origins
 	must also include the local origin for real sign-in.
 
-Without this configuration the app explains that browsing is unavailable; existing
-authorized folders and folder creation still work. See [Picker setup and checks](docs/drive-folder-picker.md).
+Without this configuration the app explains that browsing is unavailable. Picker
+is required to choose a new dashboard destination; already started batches retain
+their fixed folder. See [Picker setup and checks](docs/drive-folder-picker.md).
 
 ## Run the harness
 

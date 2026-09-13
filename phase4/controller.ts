@@ -373,7 +373,6 @@ export class DashboardController {
       this.connected = true;
       this.accountLabel = user.emailAddress || user.displayName || 'Your Google account';
       this.actionMessage = 'Connected. Upload or resume when ready.';
-      if (!this.queue.folderId) await this.loadFolders();
     }, false);
   }
 

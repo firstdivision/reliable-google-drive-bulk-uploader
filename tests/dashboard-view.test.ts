@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { Dashboard } from '../phase4/Dashboard';
+import { Dashboard, Destination, NewBatchControl } from '../phase4/Dashboard';
 import type { DashboardController, DashboardSnapshot } from '../phase4/controller';
 
 function render(overrides: Partial<DashboardSnapshot> = {}) {
@@ -18,7 +18,7 @@ function render(overrides: Partial<DashboardSnapshot> = {}) {
   let detailsReads = 0;
   const controller = { getSnapshot: () => state, subscribe: () => () => {},
     getItems: () => { detailsReads++; return []; } } as unknown as DashboardController;
-  return { html: renderToStaticMarkup(createElement(Dashboard, { controller })), detailsReads };
+  return { html: renderToStaticMarkup(createElement(Dashboard, { controller })), detailsReads, state, controller };
 }
 
 test('restored dashboard prominently exposes source reselection and account recovery', () => {
@@ -30,7 +30,8 @@ test('restored dashboard prominently exposes source reselection and account reco
   assert.match(html, /Resume is unavailable until you select the originals again/);
   assert.match(html, /1,000 of 5,000 files complete/);
   assert.equal(detailsReads, 0, 'closed details do not copy the 5,000-file list');
-  assert.match(html, /Start new batch/);
+  assert.match(html, /href="#settings" aria-label="Settings"/);
+  assert.doesNotMatch(html, /Start new batch|Request storage protection|Browse Google Drive/);
 });
 
 test('startup failure and offline status are visible without private HTML injection', () => {
@@ -41,7 +42,9 @@ test('startup failure and offline status are visible without private HTML inject
   assert.match(html, /Batch unavailable/);
   assert.match(html, /Reload saved batch/);
   assert.match(html, /Reloading does not clear saved records/);
-  assert.match(html, /<button class="button secondary" disabled="">.*?Start new batch/);
+  const { state, controller } = render({ ready: false, busy: true });
+  const settings = renderToStaticMarkup(createElement(NewBatchControl, { controller, state }));
+  assert.match(settings, /<button class="button secondary" disabled="">.*?Start new batch/);
 });
 
 test('wake control distinguishes requested state from actual acquisition', () => {
@@ -49,4 +52,54 @@ test('wake control distinguishes requested state from actual acquisition', () =>
   assert.match(html, /role="switch" aria-checked="true"/);
   assert.match(html, /Released by browser\/system/);
   assert.doesNotMatch(html, /wake-strip wake-active/);
+});
+
+test('main page keeps both checklist steps visible and requires files and a connected destination', () => {
+  const { state } = render();
+  for (const total of [0, 2]) {
+    for (const connected of [false, true]) {
+      for (const folderId of ['', 'folder']) {
+        const { html } = render({ connected, folderId, destinationLocked: false,
+          summary: { ...state.summary, total, totalBytes: total * 10, confirmedBytes: 0, remaining: total,
+            missingSources: 0, resumableSources: total,
+            counts: { ...state.summary.counts, completed: 0, paused: 0, queued: total } } });
+        assert.match(html, /Photos &amp; videos/);
+        assert.match(html, /Destination folder/);
+        assert.match(html, /href="#destination"/);
+        assert.doesNotMatch(html, /<select|Browse Google Drive|Reconnect<|Start new batch|<progress/);
+        const button = html.match(/<button class="button primary"([^>]*)>.*?Upload All<\/button>/);
+        assert.ok(button);
+        assert.equal(button[1].includes('disabled'), !(total && connected && folderId));
+      }
+    }
+  }
+});
+
+test('destination view uses only account connection and Google Picker for folder selection', () => {
+  for (const connected of [false, true]) {
+    for (const destinationLocked of [false, true]) {
+      const { state, controller } = render({ connected, destinationLocked });
+      const html = renderToStaticMarkup(createElement(Destination, { controller, state }));
+      assert.match(html, /Google account/);
+      assert.match(html, /Browse Google Drive/);
+      assert.match(html, /Open destination in Drive/);
+      assert.doesNotMatch(html, /<select|Refresh folders|New folder|Folder name/);
+      const browseButton = html.match(/<button\b[^>]*>[^]*?Browse Google Drive<\/button>/)?.[0].split('</button>').at(-2);
+      assert.ok(browseButton);
+      assert.equal(browseButton.includes('disabled'), !connected || destinationLocked);
+    }
+  }
+});
+
+test('active main page retains checklist and exposes pause and retry without settings clutter', () => {
+  const { state } = render();
+  const { html } = render({ connected: true, summary: { ...state.summary, enabled: true, active: 3,
+    missingSources: 0, retryableSources: 3,
+    counts: { queued: 3994, preparing: 0, uploading: 3, retrying: 0, paused: 0, completed: 1000, failed: 3 } } });
+  assert.match(html, /Photos &amp; videos/);
+  assert.match(html, /Destination folder/);
+  assert.match(html, /Pause All/);
+  assert.match(html, /Retry Failed \(3\)/);
+  assert.match(html, /3,994<\/dd><dt>Waiting/);
+  assert.doesNotMatch(html, /Browse Google Drive|Start new batch|Request storage protection/);
 });

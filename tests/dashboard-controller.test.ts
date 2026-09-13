@@ -203,6 +203,7 @@ function fixture(options: DashboardControllerOptions & { delayedPause?: boolean 
       await controller.initialize();
       controller.select(files);
       await controller.connect();
+      await controller.refreshFolders();
       controller.chooseFolder('folder');
     },
   };
@@ -317,6 +318,7 @@ test('reset requires confirmation and idle ownership; a committed empty batch un
   assert.equal(harness.workers.length, 0, 'reset makes no Drive requests');
   harness.auth.nextAccount = 'another-account';
   await harness.controller.connect();
+  await harness.controller.refreshFolders();
   harness.controller.chooseFolder('folder');
   harness.controller.select([file()]);
   harness.controller.start();
@@ -388,6 +390,48 @@ test('committed reset permits another account using the real GoogleAuth identity
   assert.equal(harness.snapshot().connected, true);
   assert.deepEqual(auth.user, { permissionId: 'different', displayName: undefined, emailAddress: undefined });
   await harness.controller.dispose();
+});
+
+test('connect never lists folders and pre-start reconnect retains the Picker destination', async () => {
+  let listCalls = 0;
+  const destination = { id: 'picked-folder', name: 'Verified Picker destination' };
+  const harness = fixture({
+    picker: { pick: async () => destination.id, cancel() {} },
+    folders: {
+      list: async () => { listCalls++; throw Object.assign(new Error('Folder list unavailable.'), { auth: true }); },
+      create: async name => ({ id: 'new', name }),
+      get: async id => { assert.equal(id, destination.id); return destination; },
+    },
+  });
+  try {
+    await harness.controller.initialize();
+    harness.controller.select([file()]);
+    await harness.controller.connect();
+    assert.equal(listCalls, 0);
+    assert.equal(harness.snapshot().connected, true);
+    assert.equal(harness.snapshot().busy, false);
+    assert.equal(harness.snapshot().actionMessage, 'Connected. Upload or resume when ready.');
+    assert.deepEqual(harness.snapshot().folders, []);
+    await harness.controller.browseFolders();
+    assert.equal(harness.snapshot().folderId, destination.id);
+    assert.equal(harness.snapshot().folderName, destination.name);
+    assert.equal(harness.queue.folderId, null);
+    harness.auth.invalidate();
+    await harness.controller.connect();
+    assert.equal(harness.auth.connections, 2);
+    assert.equal(listCalls, 0);
+    assert.equal(harness.snapshot().connected, true);
+    assert.equal(harness.snapshot().busy, false);
+    assert.equal(harness.snapshot().actionMessage, 'Connected. Upload or resume when ready.');
+    assert.equal(harness.snapshot().accountLabel, 'original@example.test');
+    assert.equal(harness.auth.getToken(), 'memory-only-token');
+    assert.equal(harness.snapshot().folderId, destination.id);
+    assert.equal(harness.snapshot().folderName, destination.name);
+    assert.deepEqual(harness.snapshot().folders, [destination]);
+    assert.equal(harness.snapshot().destinationLocked, false);
+    assert.equal(harness.queue.folderId, null);
+    assert.equal(harness.workers.length, 0);
+  } finally { await harness.controller.dispose(); }
 });
 
 test('Drive browser verifies the chosen folder and preserves destination on cancel or rejection', async () => {
@@ -633,6 +677,7 @@ test('connect starts synchronously and queue authRequired cannot invalidate fres
   const connecting = controller.connect();
   assert.equal(auth.connections, 1, 'OAuth invoked in the click call stack');
   await connecting;
+  await controller.refreshFolders();
   controller.chooseFolder('folder');
   controller.start();
   await harness.wait(() => workers.some(worker => worker.running));

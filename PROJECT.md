@@ -206,8 +206,10 @@ The application should allow the user to choose a Google Drive destination folde
 Decision (2026-09-13, expanded after user feedback): use Google Picker for browsing
 existing owned and "Shared with me" folders, retaining only `drive.file`.
 Leave the ownership filter unset so both are included, as documented by Google.
-The REST dropdown cannot enumerate all Drive
-folders under that scope; it remains a shortcut for already authorized folders.
+The REST dropdown cannot enumerate all Drive folders under that scope. The main
+dashboard now uses only Picker; the legacy Phase 1/2 test pages retain their
+app-authorized-folder dropdowns. Connecting the dashboard account does not fetch
+the legacy folder list.
 Picker uses the current account's in-memory token, a folder-only list view, and
 single selection. After selection, verify `files.get` metadata: matching ID, folder
 MIME type, not trashed, and `capabilities.canAddChildren`. Do not trust Picker names
@@ -478,18 +480,27 @@ Primary philosophy:
 
 Individual file details should be secondary, perhaps behind a Details screen or expandable section.
 
-### Setup Screen
+### Main Page and Destination
 
-Before uploading:
+Decision (2026-09-13, user-requested simplification): the main page remains the
+batch dashboard before and during uploading. Two checklist rows stay at the top:
 
-1. Select Photos & Videos
-2. Connect Google Drive
-3. Choose Drive destination
-4. Show selection count/size
-5. ☕ Keep Screen Awake
-6. Upload All
+1. Photos & Videos: selection count/size, with Select or Add more.
+2. Destination folder: selected folder and account, linking to a dedicated view.
 
-Once the transfer begins, transition to the dashboard.
+The destination view owns Google account connection/reconnection and Google Drive
+Picker. There is no dashboard folder dropdown, refresh-list action, or custom
+folder-creation form. The selected folder must pass the existing write-access
+validation. Both checklist requirements must be satisfied before Upload All is
+enabled; source/storage/recovery safeguards still apply. Starting a transfer fixes
+the destination for that batch, including while paused.
+
+Progress appears below the checklist once uploading starts or a saved batch is
+restored. Keep Awake and the
+primary Upload/Pause/Resume action stay on the main page; Retry Failed is visible
+when failures exist. File details remain collapsed by default. Storage/recovery
+settings and the guarded Start new batch action live in Settings. In-app hash
+navigation supports browser Back without reloading or dropping live File objects.
 
 ### Dashboard
 

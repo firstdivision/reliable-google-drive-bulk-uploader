@@ -3,6 +3,10 @@
 Implemented for the `/app/` dashboard on 2026-09-13. The user reports configuring
 Google Cloud, redeploying, and successfully browsing owned folders. The subsequent
 shared-folder change still needs real-account verification.
+The main page's Destination folder checklist row opens a dedicated view containing
+Google connection and Picker. There is no dropdown or custom creation form in the
+dashboard, and account connection no longer fetches a legacy folder list. Browser
+Back or Back to batch returns without losing the current selection or live files.
 The Phase 1/2 harness dropdowns remain limited to app-authorized folders.
 
 ## Configuration
@@ -13,7 +17,8 @@ Google Cloud project. Do not use an OAuth client secret or a service account.
 GitHub repository variables `GOOGLE_PICKER_API_KEY` and `GOOGLE_PICKER_APP_ID` are
 mapped to Vite build variables by the Pages workflow. Values are compiled into the
 public JavaScript. An absent key or invalid project number produces a visible error,
-not a broader scope request. Existing upload/folder creation still works.
+not a broader scope request. Picker configuration is required to choose a new
+destination in the dashboard; an already fixed batch retains its destination.
 
 Google's current guide requires website-restricted keys to allow both the app's
 site and `https://docs.google.com/*`, and API restrictions for Picker and Drive.
@@ -71,7 +76,7 @@ not the authenticated iframe, per-folder grant, or Google API-key configuration.
 
 After configuring Cloud and deploying:
 
-1. Connect your account, then Browse Google Drive. Find an existing nested folder
+1. Open Destination folder, connect your account, then Browse Google Drive. Find an existing nested folder
    created outside BatchHarbor. Cancel first and confirm the old selection remains.
 2. Select the folder. Confirm its real name and Open in Drive destination match.
 3. Upload one disposable file and verify it is inside that folder, not Drive root

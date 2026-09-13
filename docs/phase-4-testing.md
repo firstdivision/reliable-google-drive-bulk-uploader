@@ -48,12 +48,14 @@ share one saved queue and writer lock. Existing recovery data is reused, not res
 
 ## What changed
 
-- React/TypeScript setup and progress views, with Vite compiling static output.
+- React/TypeScript main dashboard with persistent Photos & Videos and Destination
+   checklist rows, with Vite compiling static output. Destination has its own view
+   for Google connection and Picker; no folder dropdown or custom creation form.
 - Aggregate progress, source-backed Resume/Retry controls, approximate time remaining,
   and a prominent Keep Awake switch with actual acquisition status.
 - Separate source reselection and Google reconnection steps after reopening.
 - Failure/source filters and 50-row detail pages; no thousands-row default rendering.
-- Storage settings are secondary; denied protection explicitly does not mean save
+- Storage settings and guarded Start new batch are on the Settings view; denied protection explicitly does not mean save
   failure. Same privacy boundary, OAuth scope, durable IDs, and upload protocol.
 
 One saved batch keeps its destination and account. Add More joins it. The user
@@ -75,8 +77,11 @@ sources for those checks.
 
 1. Open `/app/` on Safari. Check readable headings, controls, and no horizontal
    overflow at your preferred text size. Select files and verify count/bytes.
-2. Connect Google, choose or create an app-accessible destination, enable Keep Awake,
-   and Upload All. Verify transition to progress and the acquired/not-active status.
+2. Open Destination folder, connect Google, and select a writable folder with Google
+   Picker. Return using Done or browser Back; count/bytes must remain unchanged.
+   Upload All stays disabled until both checklist steps are complete. Enable Keep
+   Awake and upload. Both checklist rows remain above progress; verify actual wake
+   acquisition status. Destination browsing must be disabled after uploading starts.
 3. Confirm Pause All stops dispatch. Resume and inspect completed files in Drive.
    Retry Failed must be visible when failures exist and must not restart completions.
 4. Pause/save, close the page, reopen. Both source and account requirements should
@@ -85,7 +90,7 @@ sources for those checks.
    different controlled account and confirm rejection. Retain the original Drive IDs.
 6. Open Files & failures; exercise filters, pagination, and removal of an unstarted
    entry. No source media or Drive content should be removed.
-7. Request storage protection. Denial is allowed; ordinary saving remains. Observe
+7. Open Settings and request storage protection. Denial is allowed; ordinary saving remains. Observe
    offline and authorization messages during a controlled interruption.
 8. Open the legacy `/phase2/` page in a second tab. It must be blocked while `/app/`
    owns the saved queue. Close the owner and reload the second tab to recover.
@@ -94,7 +99,7 @@ sources for those checks.
 10. If startup stalls, keep the page visible for at least 15 seconds. Record the
    exact error stage and loaded revision. Close other uploader tabs and use
    **Reload saved batch**. Do not clear website data just to collect this evidence.
-11. With a disposable loaded batch and uploads paused, open **Start new batch**.
+11. With a disposable loaded batch and uploads paused, open **Settings > Start new batch**.
    Check the counts and warning. Cancel must retain the batch; reopening must
    require a fresh checkbox confirmation. Inspect Drive, then confirm the reset.
    Check that the empty batch survives reload, a new account/destination can be

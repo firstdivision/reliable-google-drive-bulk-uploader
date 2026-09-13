@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, useSyncExternalStore, type ChangeEvent } from 'react';
-import { ArrowDownToLine, ArrowLeft, ArrowRight, Check, CheckCircle2, ChevronDown, Coffee, Folder,
-  FolderPlus, ImagePlus, Link2, ListFilter, LoaderCircle, Pause, Play, RefreshCw, RotateCcw,
-  ShieldCheck, TriangleAlert, Trash2, Upload, Wifi, WifiOff } from 'lucide-react';
+import { ArrowDownToLine, ArrowLeft, ArrowRight, Check, CheckCircle2, ChevronDown, ChevronRight, Clock, Coffee, Folder,
+  FolderPlus, ImagePlus, Link2, ListFilter, Pause, Play, RefreshCw, RotateCcw, Settings,
+  ShieldCheck, TriangleAlert, Trash2, Upload, WifiOff } from 'lucide-react';
 import type { DashboardController, DashboardSnapshot } from './controller';
 import { dashboardState, formatBytes, formatPercent, formatRemaining, TransferEstimate } from './dashboard-model.mjs';
 
@@ -33,10 +33,8 @@ function WakeControl({ controller, state }: Props & { state: DashboardSnapshot }
   </section>;
 }
 
-function Destination({ controller, state }: Props & { state: DashboardSnapshot }) {
-  const [creating, setCreating] = useState(false);
+export function Destination({ controller, state }: Props & { state: DashboardSnapshot }) {
   const [browsing, setBrowsing] = useState(false);
-  const [name, setName] = useState('');
   const pinned = state.destinationLocked;
   const disabled = !state.ready || state.busy || !state.connected || pinned;
   return <div className="destination-fields">
@@ -50,27 +48,11 @@ function Destination({ controller, state }: Props & { state: DashboardSnapshot }
     }}><Folder size={18} />Browse Google Drive</button>
     {browsing && <div role="status"><p className="small">Opening Google Drive folder selection...</p>
       <button className="text-button" onClick={() => controller.cancelFolderBrowse()}>Cancel folder selection</button></div>}
-    <label htmlFor="destination">Destination folder</label>
-    <div className="folder-input"><Folder size={20} aria-hidden="true" />
-      <select id="destination" disabled={disabled} value={state.folderId} onChange={event => controller.chooseFolder(event.target.value)}>
-        <option value="">Choose a folder</option>
-        {state.folderId && !state.folders.some(folder => folder.id === state.folderId) &&
-          <option value={state.folderId}>Saved batch destination</option>}
-        {state.folders.map(folder => <option key={folder.id} value={folder.id}>{folder.name}</option>)}
-      </select>
-      <button className="icon-button" title="Refresh folders" aria-label="Refresh folders" disabled={disabled}
-        onClick={() => void controller.refreshFolders()}><RefreshCw size={18} /></button>
-    </div>
-    <div className="folder-links"><button className="text-button" disabled={disabled} onClick={() => setCreating(!creating)}>
-      <FolderPlus size={17} aria-hidden="true" />New folder</button>
-      {state.folderId && <a href={`https://drive.google.com/drive/folders/${encodeURIComponent(state.folderId)}`} target="_blank" rel="noopener noreferrer">Open in Drive <ArrowRight size={15} /></a>}</div>
-    {creating && !pinned && <form className="new-folder" onSubmit={event => {
-      event.preventDefault(); if (name.trim()) void controller.createFolder(name);
-    }}><label htmlFor="new-folder-name">Folder name</label><div className="inline-field">
-      <input id="new-folder-name" value={name} onChange={event => setName(event.target.value)} maxLength={150} disabled={disabled} required />
-      <button className="button secondary" disabled={disabled || !name.trim()} type="submit">Create</button>
-    </div></form>}
-    <p className="small muted">Browse your existing Drive folders, or choose a previously authorized folder above. The destination stays fixed once uploading starts.</p>
+    {state.folderId && <div className="destination-summary"><Folder size={24} aria-hidden="true" />
+      <div><span className="field-caption">Selected folder</span><strong>{state.folderName || 'Saved batch destination'}</strong></div>
+      <a className="icon-button" aria-label="Open destination in Drive" title="Open destination in Drive" href={`https://drive.google.com/drive/folders/${encodeURIComponent(state.folderId)}`} target="_blank" rel="noopener noreferrer"><ArrowRight size={18} /></a>
+    </div>}
+    {pinned && <p className="small muted">This batch's destination is fixed because uploading has started.</p>}
   </div>;
 }
 
@@ -128,10 +110,17 @@ export function Dashboard({ controller }: Props) {
   const summary = state.summary;
   const view = dashboardState({ ...state });
   const [details, setDetails] = useState(false);
-  const [settings, setSettings] = useState(false);
-  const [setupOverride, setSetupOverride] = useState(false);
+  const readPage = () => typeof window !== 'undefined' && ['#destination', '#settings'].includes(window.location.hash) ? window.location.hash : '#batch';
+  const [page, setPage] = useState(readPage);
+  const heading = useRef<HTMLHeadingElement>(null);
   const estimator = useRef(new TransferEstimate());
   const [estimate, setEstimate] = useState<{ bytesPerSecond: number; seconds: number } | null>(null);
+  useEffect(() => {
+    const navigate = () => { controller.cancelFolderBrowse(); setPage(readPage()); };
+    window.addEventListener('hashchange', navigate);
+    return () => window.removeEventListener('hashchange', navigate);
+  }, [controller]);
+  useEffect(() => { heading.current?.focus(); }, [page]);
   useEffect(() => {
     const sample = () => setEstimate(estimator.current.update(controller.getSnapshot().summary));
     sample();
@@ -139,87 +128,95 @@ export function Dashboard({ controller }: Props) {
     return () => clearInterval(timer);
   }, [controller]);
   const started = summary.total > 0 && (state.destinationLocked || summary.missingSources > 0);
-  const setup = !started || setupOverride;
   const sourceDisabled = !state.ready || state.busy || summary.enabled || summary.active > 0 || Boolean(summary.storageError);
   const selectionDisabled = !state.ready || state.busy || summary.missingSources > 0 || Boolean(summary.storageError);
-  const blockers = view.blockers.filter(item => item.kind !== 'account' || started);
-  const begin = () => { controller.start(); setSetupOverride(false); };
+  const blockers = view.blockers.filter(item => item.kind !== 'folder' && (item.kind !== 'account' || started));
+  const filesReady = summary.total > 0 && !summary.missingSources;
+  const destinationReady = state.connected && Boolean(state.folderId);
   return <div className="app-shell">
     <header className="topbar"><a className="wordmark" href="../"><img src={logo} alt="" /><span>BatchHarbor</span></a>
-      <span className="private-label"><ShieldCheck size={16} aria-hidden="true" />Direct to your Drive</span>
-      <span className={`connection ${state.online ? '' : 'offline'}`} title={state.online ? 'Browser reports online' : 'Browser reports offline'}>
-        {state.online ? <Wifi size={16} /> : <WifiOff size={16} />}<span>{state.online ? 'Online' : 'Offline'}</span></span>
+      <a className="icon-button" href="#settings" aria-label="Settings" title="Settings"><Settings size={22} /></a>
     </header>
     <main>
-      <div className="page-heading"><div><p className="eyebrow">{setup ? 'YOUR NEXT BATCH' : 'BATCH OVERVIEW'}</p>
-        <h1>{!state.ready ? view.title : setup ? 'A little setup. A lot uploaded.' : view.title}</h1></div>
-        {started && <button className="text-button" onClick={() => setSetupOverride(!setupOverride)}>{setupOverride ? 'Back to progress' : 'Batch settings'}<ArrowRight size={16} /></button>}
-      </div>
+      {page !== '#batch' && <a className="back-link" href="#batch"><ArrowLeft size={19} />Back to batch</a>}
+      <div className="page-heading"><h1 ref={heading} tabIndex={-1}>{page === '#destination' ? 'Destination folder' : page === '#settings' ? 'Settings' : !state.ready ? view.title : 'Upload to Google Drive'}</h1></div>
+      {page === '#destination' && <section aria-label="Destination folder"><Destination controller={controller} state={state} />
+        <a className="button primary destination-done" href="#batch">{destinationReady ? 'Done' : 'Back to batch'}<Check size={19} /></a>
+      </section>}
+      {page === '#batch' && <>
       {!state.online && <div className="notice warning" role="status"><WifiOff size={21} /><div><strong>Connection interrupted</strong><p>Keep this page open. Uploads retry automatically; permanent failures remain available under Retry Failed.</p></div></div>}
       {blockers.length > 0 && <section className="recovery-panel" aria-labelledby="recovery-title">
         <div className="section-heading"><div className="heading-with-icon"><TriangleAlert size={21} /><h2 id="recovery-title">{summary.missingSources ? 'Your batch is saved. Reconnect the files.' : 'Before you continue'}</h2></div></div>
         {blockers.map(blocker => <div className="recovery-step" key={blocker.kind}>
           <p>{blocker.message}</p>
           {blocker.kind === 'sources' && <FilePicker id="recovery-files" label="Select originals again" recovery disabled={sourceDisabled} onFiles={files => void controller.reconnectSources(files)} />}
-          {blocker.kind === 'account' && <button className="button secondary" disabled={!state.ready || state.busy || summary.enabled || summary.active > 0} onClick={() => void controller.connect()}><Link2 size={18} />Connect Google</button>}
+          {blocker.kind === 'account' && <a className="button secondary" href="#destination"><Link2 size={18} />Connect Google</a>}
           {blocker.kind === 'storage' && <button className="button secondary" disabled={state.busy || summary.active > 0} onClick={() => void controller.retryStorage()}><RotateCcw size={18} />Retry saving</button>}
           {blocker.kind === 'startup' && <><button className="button secondary" onClick={() => window.location.reload()}><RefreshCw size={18} />Reload saved batch</button>
             <p className="small">Uploads and batch reset remain disabled until storage opens safely. Reloading does not clear saved records.</p></>}
         </div>)}
         {summary.missingSources > 0 && <p className="small">Choose the same photos and videos, including completed ones if easier. Completed files are skipped. Reconnecting does not upload anything until you resume.</p>}
       </section>}
-      {state.selectionMessage && (setup || summary.missingSources > 0) && <p className="selection-message" role="status">{state.selectionMessage}</p>}
-      {setup ? <section className="setup-layout" aria-label="Batch setup">
-        <div className="setup-step"><div className="step-heading"><span className="step-number">01</span><h2>Choose your photos &amp; videos</h2></div>
-          <div className="selection-summary"><div className="selection-icon"><ImagePlus size={30} /></div><div><strong>{summary.total.toLocaleString()}</strong><span>files selected <span aria-hidden="true"> / </span> {formatBytes(summary.totalBytes)}</span></div></div>
-          <FilePicker id="select-files" label={summary.total ? 'Add more files' : 'Select photos & videos'} disabled={selectionDisabled} onFiles={files => controller.select(files)} />
-          <p className="small muted">Your media goes directly to Google Drive, never through our servers.</p>
+      <section className="checklist" aria-label="Batch setup">
+        <div className="checklist-row" aria-label={filesReady ? 'Photos and videos selected' : 'Photos and videos required'}>
+          <span className="checklist-icon media-icon"><ImagePlus size={27} aria-hidden="true" /></span>
+          <div className="checklist-copy"><span className="step-caption"><span className={`step-status ${filesReady ? 'step-complete' : ''}`}>{filesReady ? <Check size={13} aria-label="Complete" /> : '1'}</span>Photos &amp; videos</span>
+            <strong>{summary.total ? `${summary.total.toLocaleString()} ${summary.total === 1 ? 'file' : 'files'} selected` : 'Select your files'}</strong>
+            {summary.total > 0 && <span className="checklist-meta">{formatBytes(summary.totalBytes)} total{summary.missingSources > 0 ? ' / originals needed' : ''}</span>}
+          </div>
+          <FilePicker id="select-files" label={summary.total ? 'Add more' : 'Select'} disabled={selectionDisabled} onFiles={files => controller.select(files)} />
         </div>
-        <div className="setup-step"><div className="step-heading"><span className="step-number">02</span><h2>Choose where they go</h2></div><Destination controller={controller} state={state} /></div>
-      </section> : <section className="progress-section" aria-labelledby="progress-heading">
-        <div className="destination-summary"><Folder size={20} /><div><span className="small muted">Uploading to</span><strong>{state.folderName || 'Saved batch destination'}</strong></div>
-          {state.folderId && <a className="icon-button" aria-label="Open destination in Drive" title="Open destination in Drive" href={`https://drive.google.com/drive/folders/${encodeURIComponent(state.folderId)}`} target="_blank" rel="noopener noreferrer"><ArrowRight size={20} /></a>}</div>
-        <div className="progress-heading"><div><h2 id="progress-heading">{view.complete ? 'All files uploaded' : 'Batch progress'}</h2><p>{summary.counts.completed.toLocaleString()} of {summary.total.toLocaleString()} files complete</p></div>
+        <a className="checklist-row destination-link" href="#destination" aria-label={destinationReady ? `Destination folder: ${state.folderName || 'Saved batch destination'}` : 'Set up destination folder'}>
+          <span className="checklist-icon folder-icon"><Folder size={27} aria-hidden="true" /></span>
+          <div className="checklist-copy"><span className="step-caption"><span className={`step-status ${destinationReady ? 'step-complete' : ''}`}>{destinationReady ? <Check size={13} aria-label="Complete" /> : '2'}</span>Destination folder</span>
+            <strong>{state.folderId ? state.folderName || 'Saved batch destination' : 'Choose a folder'}</strong>
+            <span className="checklist-meta">{state.connected ? state.accountLabel : 'Connect Google'}</span>
+          </div><span className="checklist-action">{state.folderId ? 'View' : 'Set up'}<ChevronRight size={18} aria-hidden="true" /></span>
+        </a>
+      </section>
+      {state.selectionMessage && (!summary.total || summary.missingSources > 0) && <p className="selection-message" role="status">{state.selectionMessage}</p>}
+      {started && <section className="progress-section" aria-labelledby="progress-heading">
+        <div className="progress-heading"><div><h2 id="progress-heading">{view.complete ? 'All files uploaded' : view.title}</h2><p>{summary.counts.completed.toLocaleString()} of {summary.total.toLocaleString()} files complete</p></div>
           <strong className="percentage">{formatPercent(summary)}<span>%</span></strong></div>
         <progress value={summary.confirmedBytes} max={summary.totalBytes || 1} aria-label="Google-confirmed upload progress" />
         <div className="progress-meta"><span>{formatBytes(summary.confirmedBytes)} / {formatBytes(summary.totalBytes)}</span>
           <span>{view.complete ? 'Confirmed by Google' : summary.enabled ? estimate ? formatRemaining(estimate.seconds) : 'Calculating remaining time' : 'Resume to estimate time'}</span></div>
         <dl className="stats"><div><CheckCircle2 size={20} /><dd>{summary.counts.completed.toLocaleString()}</dd><dt>Completed</dt></div>
           <div><Upload size={20} /><dd>{(summary.counts.preparing + summary.counts.uploading + summary.counts.retrying).toLocaleString()}</dd><dt>Active</dt></div>
-          <div><LoaderCircle size={20} /><dd>{summary.remaining.toLocaleString()}</dd><dt>Remaining</dt></div>
+          <div><Clock size={20} /><dd>{(summary.counts.queued + summary.counts.paused).toLocaleString()}</dd><dt>Waiting</dt></div>
           <div className={summary.counts.failed ? 'has-failures' : ''}><TriangleAlert size={20} /><dd>{summary.counts.failed.toLocaleString()}</dd><dt>Failed</dt></div></dl>
         {summary.enabled && <p className="small muted">{summary.counts.queued.toLocaleString()} queued{summary.counts.retrying ? ` / ${summary.counts.retrying} retrying` : ''}{estimate ? ` / ${formatBytes(estimate.bytesPerSecond)}/s` : ''}</p>}
         {view.complete && <div className="completion-note"><Check size={20} /><p>Verify your files in Drive before removing any originals from your device.</p></div>}
       </section>}
       <div className="operation-area"><WakeControl controller={controller} state={state} />
-        <p className="awake-note">Keep this page open and your phone plugged in during uploads.</p>
         <div className="primary-actions">
           {summary.enabled ? <button className="button primary" onClick={() => controller.pause()}><Pause size={21} />Pause All</button> :
-            <button className="button primary" disabled={!view.canResume} aria-describedby={!view.canResume && !view.complete ? 'resume-reason' : undefined} onClick={begin}>{view.complete ? <CheckCircle2 size={21} /> : started ? <Play size={21} /> : <Upload size={21} />}{view.complete ? 'All uploaded' : started ? 'Resume upload' : 'Upload All'}</button>}
-          {summary.counts.failed > 0 && <button className="button retry" disabled={!view.canRetry} onClick={() => { controller.retryFailed(); setSetupOverride(false); }}><RotateCcw size={20} />Retry Failed ({summary.counts.failed.toLocaleString()})</button>}
+            <button className="button primary" disabled={!view.canResume} aria-describedby={!view.canResume && !view.complete ? 'resume-reason' : undefined} onClick={() => controller.start()}>{view.complete ? <CheckCircle2 size={21} /> : started ? <Play size={21} /> : <Upload size={21} />}{view.complete ? 'All uploaded' : started ? 'Resume upload' : 'Upload All'}</button>}
+          {summary.counts.failed > 0 && <button className="button retry" disabled={!view.canRetry} onClick={() => controller.retryFailed()}><RotateCcw size={20} />Retry Failed ({summary.counts.failed.toLocaleString()})</button>}
         </div>
         {!summary.enabled && !view.canResume && !view.complete && <p className="blocked-reason" id="resume-reason">{state.startupError ? 'Startup failed. Review the message above and reload to retry.' : state.busy ? 'Wait for the current operation to finish.' : !summary.total ? 'Select files, connect Google, and choose a destination to begin.' :
           summary.remaining === summary.missingSources ? 'Resume is unavailable until you select the originals again.' :
           !state.connected ? 'Connect Google to enable upload.' : !state.folderId ? 'Choose a destination to enable upload.' :
           summary.counts.failed ? 'Use Retry Failed to retry failed entries.' : view.blockers[0]?.message || 'Waiting for active requests to stop.'}</p>}
-        {state.actionMessage && <p className="action-message" role="status">{state.actionMessage}</p>}
+        <p className="awake-note">Keep this page open and your device plugged in. Uploads cannot continue while the page is closed.</p>
       </div>
-      {started && !setup && <div className="add-more-row"><FilePicker id="add-files" label="Add more files" disabled={selectionDisabled} onFiles={files => controller.select(files)} /><span className="small muted">Same batch. Same destination.</span></div>}
-      {state.selectionMessage && !setup && !summary.missingSources && <p className="selection-message" role="status">{state.selectionMessage}</p>}
-      {summary.total > 0 && <NewBatchControl controller={controller} state={state} />}
-      <section className="secondary-section"><button className="disclosure" aria-expanded={details} aria-controls="file-details" onClick={() => setDetails(!details)}>
+      {summary.total > 0 && <section className="secondary-section"><button className="disclosure" aria-expanded={details} aria-controls="file-details" onClick={() => setDetails(!details)}>
         <span><ListFilter size={20} />Files &amp; failures <span className="count-label">{summary.total.toLocaleString()}</span></span><ChevronDown size={20} className={details ? 'rotated' : ''} /></button>
-        {details && <div id="file-details"><FileDetails controller={controller} state={state} /></div>}</section>
-      <section className="secondary-section"><button className="disclosure" aria-expanded={settings} aria-controls="recovery-settings" onClick={() => setSettings(!settings)}>
-        <span><ShieldCheck size={20} />Recovery &amp; device storage</span><ChevronDown size={20} className={settings ? 'rotated' : ''} /></button>
-        {settings && <div id="recovery-settings" className="storage-settings"><p className="storage-state"><ShieldCheck size={18} />{state.storageMessage}</p>
+        {details && <div id="file-details">{state.selectionMessage && !summary.missingSources && <p className="selection-message" role="status">{state.selectionMessage}</p>}<FileDetails controller={controller} state={state} /></div>}</section>}
+      </>}
+      {page === '#settings' && <section aria-label="Recovery and device storage">
+        <h2>Recovery &amp; device storage</h2>
+        <div className="storage-settings"><p className="storage-state"><ShieldCheck size={18} />{state.storageMessage}</p>
           <p className="small muted">Keep this page open until the batch finishes. The saved list contains records, not your photos or videos. If file access is lost, reconnecting originals is an optional recovery step, not guaranteed recovery. Uploads cannot continue while this page is closed.</p>
           {summary.remaining > 0 && <FilePicker id="replace-sources" label="Reconnect original files" recovery disabled={sourceDisabled} onFiles={files => void controller.reconnectSources(files)} />}
           <button className="button secondary" disabled={!state.ready || state.busy} onClick={() => void controller.protectStorage()}><ArrowDownToLine size={18} />Request storage protection</button>
           <p className="small" role="status">{state.retentionMessage || 'Optional. The browser decides whether to protect saved records from automatic cleanup. This does not preserve access to your media.'}</p>
           {state.retentionMessage.includes('not granted') && <p className="small">Your queue is still saved normally. You can keep uploading. Browser cleanup or clearing site data may remove recovery records.</p>}
-        </div>}</section>
-      <footer><span><ShieldCheck size={15} />No backend. No saved tokens.</span><nav aria-label="Footer"><a href="../privacy/">Privacy</a><a href="../terms/">Terms</a><a href="../phase2/">Test page</a></nav></footer>
+        </div>
+        {summary.total > 0 && <NewBatchControl controller={controller} state={state} />}
+      </section>}
+      {state.actionMessage && <p className="action-message" role="status">{state.actionMessage}</p>}
+      <footer><span><ShieldCheck size={15} />Direct to your Drive</span><nav aria-label="Footer"><a href="../privacy/">Privacy</a><a href="../terms/">Terms</a></nav></footer>
     </main>
   </div>;
 }
