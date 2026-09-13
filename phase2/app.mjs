@@ -1,15 +1,19 @@
 import { GoogleAuth, DriveFolders } from '../phase1/google.mjs';
 import { UploadQueue } from './upload-queue.mjs';
+import { QueueStore } from './queue-store.mjs';
 
 const byId = (id) => document.getElementById(id);
-const auth = new GoogleAuth();
+const auth = new GoogleAuth({ getExpectedAccountId: () => queue.accountId });
 const folders = new DriveFolders(auth);
-let busy = false;
+const store = new QueueStore();
+let busy = true;
+let ready = false;
 let connected = false;
 let page = 0;
 let renderTimer = null;
 const PAGE_SIZE = 50;
-const queue = new UploadQueue({ getToken: () => auth.getToken(), onChange: (current) => {
+const queue = new UploadQueue({ getToken: () => auth.getToken(), getAccountId: () => auth.user?.permissionId,
+  onChange: (current) => {
   if (current.authRequired && connected) {
     failure({ auth: true, message: 'Batch paused for authorization. Reconnect with the same account, then resume.' });
   }
@@ -35,17 +39,27 @@ function render() {
   const counts = state.counts;
   byId('connect').disabled = busy || state.active > 0 || state.enabled;
   byId('connect').textContent = connected ? 'Reconnect Google' : 'Connect Google Drive';
-  byId('files').disabled = busy;
+  byId('files').disabled = busy || Boolean(state.storageError) || state.missingSources > 0;
+  byId('reselect').disabled = busy || state.enabled || state.active > 0 || !state.remaining || Boolean(state.storageError);
+  byId('recovery-status').textContent = state.missingSources
+    ? `${state.missingSources.toLocaleString()} ${state.missingSources === 1 ? 'file needs' : 'files need'} source access. Reselect the original files, reconnect Google, then resume.`
+    : 'No source files awaiting reconnection.';
+  byId('retry-storage').hidden = !state.storageError;
+  byId('retry-storage').disabled = busy || state.active > 0;
+  byId('protect-storage').disabled = busy || typeof navigator.storage?.persist !== 'function';
+  if (ready) byId('storage-status').textContent = state.storageError ? state.storageError.message : state.saving
+    ? 'Saving queue metadata on this device…' : 'Queue metadata saved on this device. Browser data clearing can still remove it.';
   byId('folder-name').disabled = !connected || busy || Boolean(queue.folderId) || Boolean(folders.pendingName);
   for (const id of ['folders', 'create-folder', 'refresh-folders']) {
     byId(id).disabled = !connected || busy || Boolean(queue.folderId);
   }
-  byId('upload').disabled = busy || !connected || state.enabled ||
+  byId('upload').disabled = busy || Boolean(state.storageError) || !connected || state.enabled ||
+    state.remaining === state.missingSources ||
     !byId('folders').value || !(counts.queued + counts.paused + (state.authRequired ? counts.failed : 0));
   byId('upload').textContent = queue.folderId ? 'Resume / Upload queued' : 'Upload All';
   byId('pause').disabled = !state.enabled;
-  byId('retry').disabled = busy || !connected || !counts.failed;
-  byId('clear').disabled = !state.unstarted;
+  byId('retry').disabled = busy || Boolean(state.storageError) || !connected || !counts.failed || state.remaining === state.missingSources;
+  byId('clear').disabled = busy || Boolean(state.storageError) || !state.unstarted;
   const percent = state.totalBytes ? 100 * state.confirmedBytes / state.totalBytes : 0;
   byId('percent').textContent = `${percent.toFixed(1)}%`;
   byId('progress').max = state.totalBytes || 1;
@@ -56,10 +70,12 @@ function render() {
     active: counts.preparing + counts.uploading + counts.retrying, remaining: state.remaining, failed: counts.failed })) {
     byId(id).textContent = value.toLocaleString();
   }
-  const status = state.authRequired ? 'Authorization needed — batch paused.' :
+  const status = state.storageError ? 'Storage error — uploads paused.' :
+    state.authRequired ? 'Authorization needed — batch paused.' :
     state.enabled ? `Uploading · ${counts.retrying} retrying · ${counts.queued} queued` :
     state.active ? 'Pausing — waiting for active requests to stop.' :
-    counts.paused ? 'Paused. Keep this tab open to retain the batch.' :
+    state.missingSources ? 'Previous batch restored. Original source files are needed.' :
+    counts.paused ? 'Paused. Resume when ready.' :
     counts.failed ? 'Batch finished with failures. Review details and use Retry Failed.' :
     state.total && counts.completed === state.total ? 'Batch complete. Verify your files in Drive.' : 'Ready when you are.';
   if (byId('batch-status').textContent !== status) byId('batch-status').textContent = status;
@@ -76,7 +92,7 @@ function renderDetails() {
   for (const item of items.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE)) {
     const row = document.createElement('li');
     const text = document.createElement('p');
-    text.textContent = `${item.name} · ${formatBytes(item.size)} · ${item.status} · ${item.confirmedBytes.toLocaleString()} bytes confirmed`;
+    text.textContent = `${item.name} · ${formatBytes(item.size)} · ${item.status}${!item.file && item.status !== 'completed' ? ' (source needed)' : ''} · ${item.confirmedBytes.toLocaleString()} bytes confirmed`;
     row.append(text);
     if (item.error) {
       const error = document.createElement('p');
@@ -100,6 +116,7 @@ function renderDetails() {
     if (!item.attempted) {
       const remove = document.createElement('button');
       remove.type = 'button';
+      remove.disabled = busy || Boolean(queue.storageError);
       remove.textContent = 'Remove from queue';
       remove.setAttribute('aria-label', `Remove ${item.name} from queue`);
       remove.addEventListener('click', () => { queue.remove(item.id); render(); });
@@ -184,6 +201,32 @@ byId('files').addEventListener('change', () => {
   byId('selection-status').textContent = `${result.added} added · ${result.duplicates} matching selections skipped · ${result.rejected} empty or invalid files skipped.`;
   render();
 });
+byId('reselect').addEventListener('change', async () => {
+  const selected = [...byId('reselect').files];
+  byId('reselect').value = '';
+  busy = true; render();
+  try {
+    const result = await queue.reconnectSources(selected);
+    byId('selection-status').textContent = `${result.matched} reconnected · ${result.skipped} completed selections skipped · ${result.unmatched} unmatched · ${result.ambiguous} ambiguous · ${result.mismatched} changed or unreadable. No unmatched files were added.`;
+  } catch (error) { failure(error); }
+  finally { busy = false; render(); }
+});
+byId('retry-storage').addEventListener('click', async () => {
+  busy = true; render();
+  try { await store.open(); await queue.retryStorage(); }
+  catch (error) { failure(error); }
+  finally { busy = false; render(); }
+});
+byId('protect-storage').addEventListener('click', async () => {
+  busy = true; render();
+  try {
+    const granted = await navigator.storage.persist();
+    byId('retention-status').textContent = granted
+      ? 'Storage protection granted. Clearing site data still removes saved recovery records.'
+      : 'Storage protection not granted. The browser may evict saved recovery records.';
+  } catch { byId('retention-status').textContent = 'Storage protection unavailable. Saved records may be evicted.'; }
+  finally { busy = false; render(); }
+});
 byId('clear').addEventListener('click', () => {
   for (const item of queue.items.values()) if (!item.attempted) queue.remove(item.id);
   byId('selection-status').textContent = 'Unstarted files removed from this queue only. No source or Drive files were deleted.';
@@ -215,3 +258,35 @@ window.addEventListener('offline', showNetwork);
 window.addEventListener('pagehide', () => queue.pause());
 showNetwork();
 render();
+
+async function initialize() {
+  if (!navigator.locks?.request) {
+    byId('storage-status').textContent = 'This browser cannot safely lock the saved queue. Use a current browser over HTTPS.';
+    return;
+  }
+  try {
+    await navigator.locks.request('batchharbor-queue-writer', { ifAvailable: true }, async lock => {
+      if (!lock) throw new Error('This batch is open in another tab. Close that tab, then reload this page.');
+      await store.open();
+      const saved = await store.load();
+      if (saved !== null) queue.restore(saved);
+      queue.saveSnapshot = snapshot => store.save(snapshot);
+      if (queue.folderId) {
+        byId('folders').replaceChildren(new Option('Saved batch destination', queue.folderId));
+        byId('folders').value = queue.folderId;
+        showDestination();
+      }
+      ready = true;
+      busy = false;
+      render();
+      await new Promise(() => {});
+    });
+  } catch (error) {
+    busy = true;
+    ready = false;
+    byId('storage-status').textContent = `${error.message} Saved data has not been replaced. Reload to retry.`;
+    render();
+  }
+}
+
+void initialize();

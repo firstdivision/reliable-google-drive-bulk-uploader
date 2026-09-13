@@ -4,6 +4,10 @@ Status: implemented with automated synthetic tests and a user-reported small
 real-device batch pass on 2026-09-13. See the reported results below for evidence
 limits; Android physical validation remains pending.
 
+The `/phase2/` URL now serves the Phase 3 recovery-enabled page. This document
+records the earlier in-memory Phase 2 behavior and evidence; use the
+[Phase 3 procedure](phase-3-testing.md) for current persistence/restart testing.
+
 After publishing, open [the Phase 2 page](https://batchharbor.killfly.com/phase2/)
 over HTTPS. Use the same OAuth origin and test-account setup as
 [Phase 1](phase-1-testing.md). The new page imports the existing Phase 1 protocol,

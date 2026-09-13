@@ -4,7 +4,7 @@ import { readFileSync } from 'node:fs';
 import vm from 'node:vm';
 import { UploadQueue } from '../phase2/upload-queue.mjs';
 
-const tick = () => new Promise(setImmediate);
+const tick = async () => { for (let turn = 0; turn < 20; turn++) await new Promise(setImmediate); };
 function element() {
   return { textContent: '', disabled: false, hidden: false, files: [], value: '', checked: false,
     open: false, children: [], options: [], listeners: {},
@@ -18,7 +18,7 @@ function element() {
   };
 }
 
-function harness() {
+async function harness({ saved = null, locked = false, loadError = false } = {}) {
   const nodes = new Map();
   const timers = [];
   const get = (id) => {
@@ -31,7 +31,7 @@ function harness() {
   const workers = [];
   class TestAuth {
     constructor() { auth = this; this.token = ''; }
-    connect() { this.token = 'test'; return Promise.resolve({ displayName: 'Synthetic account' }); }
+    connect() { this.token = 'test'; this.user = { displayName: 'Synthetic account', permissionId: 'original' }; return Promise.resolve(this.user); }
     invalidate() { this.token = ''; }
     getToken() {
       if (!this.token) throw Object.assign(new Error('Reconnect'), { auth: true });
@@ -68,12 +68,21 @@ function harness() {
       create() { return Promise.resolve({ id: 'new-folder', name: 'New folder' }); }
     },
     UploadQueue: TestQueue,
+    QueueStore: class {
+      async open() {}
+      async load() { if (loadError) throw new Error('Storage unavailable'); return saved; }
+      async save(snapshot) { saved = structuredClone(snapshot); }
+    },
     document: { getElementById: get, createElement: element }, window,
-    navigator: { onLine: true },
+    navigator: { onLine: true, locks: { async request(name, options, callback) {
+      assert.equal(name, 'batchharbor-queue-writer'); assert.equal(options.ifAvailable, true);
+      return callback(locked ? null : {});
+    } } },
     Option: function (text, value) { return { textContent: text, value }; },
     setTimeout: (callback) => { timers.push(callback); return timers.length; },
   });
-  return { get, queue, workers, auth, window,
+  await tick();
+  return { get, queue, workers, auth, window, saved: () => structuredClone(saved),
     flush() { while (timers.length) timers.shift()(); },
     async connect() {
       await get('connect').emit('click');
@@ -83,7 +92,7 @@ function harness() {
     select(count = 3) {
       get('files').files = Array.from({ length: count }, (_, i) => ({
         name: i === 0 ? '<img src=x onerror=alert(1)>' : `video-${i}`, size: 10, lastModified: 1,
-        type: 'video/mp4', slice() { throw new Error('UI must not read file bytes'); },
+        type: 'video/mp4', slice(start, end) { return new Blob([new Uint8Array(end - start)]); },
       }));
       get('files').value = 'native-selection';
       get('files').emit('change');
@@ -91,8 +100,8 @@ function harness() {
   };
 }
 
-test('batch page bounds details to 50 rows and safely renders 5,000 metadata selections', () => {
-  const h = harness();
+test('batch page bounds details to 50 rows and safely renders 5,000 metadata selections', async () => {
+  const h = await harness();
   h.select(5000);
   assert.equal(h.get('files').value, '');
   assert.equal(h.get('selected').textContent, '5,000');
@@ -112,7 +121,7 @@ test('batch page bounds details to 50 rows and safely renders 5,000 metadata sel
 });
 
 test('batch controls reflect selection, destination lock, pause/resume, and completed results', async () => {
-  const h = harness();
+  const h = await harness();
   assert.equal(h.get('upload').disabled, true);
   h.select();
   await h.connect();
@@ -140,7 +149,7 @@ test('batch controls reflect selection, destination lock, pause/resume, and comp
 });
 
 test('UI reconnect does not invalidate the new token before Resume', async () => {
-  const h = harness();
+  const h = await harness();
   h.select(); await h.connect();
   h.get('upload').emit('click');
   await tick();
@@ -161,7 +170,7 @@ test('UI reconnect does not invalidate the new token before Resume', async () =>
 });
 
 test('failures are filterable and Retry Failed never restarts completed files', async () => {
-  const h = harness();
+  const h = await harness();
   h.select(2); await h.connect();
   h.get('upload').emit('click');
   await tick();
@@ -184,7 +193,7 @@ test('failures are filterable and Retry Failed never restarts completed files', 
 });
 
 test('pagehide pauses the batch instead of claiming background execution', async () => {
-  const h = harness();
+  const h = await harness();
   h.select(); await h.connect();
   h.get('upload').emit('click');
   await tick();
@@ -203,4 +212,43 @@ test('batch static assets use restricted destinations and are included in Pages 
   assert.doesNotMatch(html, /unsafe-inline|unsafe-eval/);
   assert.match(workflow, /cp phase2\/\* public\/phase2\//);
   assert.match(workflow, /node --check phase2\/upload-queue.mjs/);
+});
+
+test('restored page pins destination and enables resume only after source reconnection', async () => {
+  const first = await harness();
+  first.select(2); await first.connect();
+  first.get('upload').emit('click');
+  await tick();
+  first.workers[0].settle('completed');
+  first.get('pause').emit('click');
+  await tick(); first.flush();
+  const restored = await harness({ saved: first.saved() });
+  assert.equal(restored.get('folders').value, 'folder');
+  assert.equal(restored.get('completed').textContent, '1');
+  assert.equal(restored.get('files').disabled, true);
+  assert.equal(restored.get('reselect').disabled, false);
+  assert.equal(restored.get('upload').disabled, true);
+  await restored.get('connect').emit('click');
+  assert.equal(restored.get('upload').disabled, true);
+  restored.get('reselect').files = first.get('files').files;
+  restored.get('reselect').value = 'native-selection';
+  await restored.get('reselect').emit('change');
+  assert.equal(restored.get('reselect').value, '');
+  assert.match(restored.get('selection-status').textContent, /1 reconnected/);
+  assert.equal(restored.get('upload').disabled, false);
+  assert.equal(restored.get('folders').disabled, true);
+  assert.equal(restored.get('completed').textContent, '1');
+  assert.equal(restored.workers.length, 0, 'reselection does not auto-start requests');
+});
+
+test('another tab or unreadable saved data blocks controls without replacing the snapshot', async () => {
+  const marker = { version: 'unsupported', items: [] };
+  for (const options of [{ locked: true }, { loadError: true }, { saved: marker }]) {
+    const page = await harness(options);
+    assert.equal(page.get('connect').disabled, true);
+    assert.equal(page.get('files').disabled, true);
+    assert.equal(page.get('upload').disabled, true);
+    assert.match(page.get('storage-status').textContent, /Saved data has not been replaced/);
+    assert.deepEqual(page.saved(), options.saved || null);
+  }
 });

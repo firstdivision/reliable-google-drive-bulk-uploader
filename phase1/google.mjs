@@ -19,10 +19,12 @@ export class GoogleAuth {
   #expiresAt = 0;
   #user = null;
   #connecting = false;
-  constructor({ fetchImpl = globalThis.fetch.bind(globalThis), googleProvider = () => globalThis.google, now = Date.now } = {}) {
+  constructor({ fetchImpl = globalThis.fetch.bind(globalThis), googleProvider = () => globalThis.google, now = Date.now,
+    getExpectedAccountId = () => null } = {}) {
     this.fetchImpl = fetchImpl;
     this.googleProvider = googleProvider;
     this.now = now;
+    this.getExpectedAccountId = getExpectedAccountId;
   }
   get user() { return this.#user; }
   invalidate() { this.#token = null; this.#expiresAt = 0; }
@@ -62,7 +64,9 @@ export class GoogleAuth {
               if (!response.ok) throw new AuthRequiredError('Could not verify the Drive account. Connect again.');
               const { user } = await response.json();
               if (!user?.permissionId) throw new AuthRequiredError('Google did not return a Drive account identifier.');
-              if (this.#user && this.#user.permissionId !== user.permissionId) {
+                const expectedAccountId = this.getExpectedAccountId();
+                if ((this.#user && this.#user.permissionId !== user.permissionId) ||
+                  (expectedAccountId && expectedAccountId !== user.permissionId)) {
                 throw new AuthRequiredError('Reconnect with the original Google account to preserve this upload and destination.');
               }
               if (this.now() >= expiresAt) throw new AuthRequiredError();

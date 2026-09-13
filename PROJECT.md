@@ -694,6 +694,44 @@ Keep upload logic independent of React UI.
 
 ### Phase 3 — Persistence / Recovery
 
+Implementation status (2026-09-13): implemented in the existing `phase2/` batch
+page and modules, keeping the deployment URL stable. The plain-JavaScript engine
+remains independent of UI; the React/TypeScript dashboard is still Phase 4.
+See [Phase 3 testing and decisions](docs/phase-3-testing.md) for the device
+procedure, verified protocol references, and evidence limits.
+
+Accepted decisions:
+
+- Store a versioned IndexedDB snapshot of queue metadata, original Drive account
+  permission ID, fixed destination, stable file IDs, resumable session URLs,
+  confirmed progress, sanitized errors, bounded source fingerprints, and
+  completed records. Do not store media, live File objects, or OAuth tokens.
+- Await committed metadata checkpoints before file creation and media requests;
+  request strict IndexedDB write durability. Coalesce concurrent snapshot saves.
+  Storage failure pauses uploads and requires an explicit successful save retry.
+  Invalid/unsupported records block startup without silently replacing them.
+- Restore unfinished work paused or failed with missing source access. Match exact
+  name/size/type/modification time and, for previously prepared files, SHA-256 of
+  at most the first/last 64 KiB. This is not proof of whole-file equality.
+  Changed/ambiguous/unreadable sources are rejected, not added as new uploads.
+- Verify the saved account before accepting a fresh token. Probe Google before
+  resuming; reconcile an expired session against the same reserved Drive ID.
+  Completed entries stay completed and retain selection deduplication metadata.
+- Require an exclusive Web Lock for the persisted batch's tab lifetime. A second
+  tab cannot read/replace the queue or start uploads. Feature-detect the API and
+  block this recovery page safely when unavailable; no unsafe competing-writer
+  fallback. MDN lists current Tier 1 support (Safari/iOS 15.4+, Chrome 69+).
+- Browser storage retention is not guaranteed. Optional storage protection can
+  be denied. No background execution, source retention, Safari kill/reboot, or
+  production-scale reliability is claimed. The Phase 0 limitation remains.
+- This slice retains one saved batch with a fixed account/destination and bounded
+  detail rendering; batch-history management is not introduced here.
+
+Automated checks and an integrated desktop-browser reload/reselection flow with
+real IndexedDB/Web Locks and mocked Google passed. Physical iPhone/iPad, Android,
+Safari termination/reboot, and real Google session/token expiry remain unverified
+for Phase 3. A prior Phase 2 pass does not establish those behaviors.
+
 Implement IndexedDB queue metadata.
 
 Test:

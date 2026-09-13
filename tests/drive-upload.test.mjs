@@ -157,3 +157,60 @@ test('invalid offsets fail and token-provider auth errors are preserved', async 
   await second.start();
   assert.equal(second.error, authError);
 });
+
+test('durable identity and session checkpoints precede creation and media', async () => {
+  const saved = [];
+  const { upload } = fixture(10, [reply(200, { ids: ['reserved'] }), () => {
+    assert.equal(saved.at(-1).fileId, 'reserved');
+    return reply(200, null, { Location: session });
+  }, () => {
+    assert.equal(saved.at(-1).sessionUrl, session);
+    return reply(200, metadata(10));
+  }], { checkpoint: async current => saved.push({ fileId: current.fileId, sessionUrl: current.sessionUrl }) });
+  await upload.start();
+  assert.equal(upload.state, 'completed');
+});
+
+test('failed durable save blocks creation, including an explicit retry', async () => {
+  const { upload, calls } = fixture(10, [reply(200, { ids: ['reserved'] })], {
+    checkpoint: async current => { if (current.fileId) throw new Error('Storage unavailable'); },
+  });
+  await upload.start();
+  await upload.start();
+  assert.equal(upload.state, 'failed');
+  assert.equal(calls.length, 1);
+});
+
+test('restored upload probes Google before sending more media', async () => {
+  const { upload, calls } = fixture(UNIT + 10, [reply(308, null, { Range: `bytes=0-${UNIT - 1}` }),
+    reply(200, metadata(UNIT + 10))], {
+    recovery: { fileId: 'reserved', sessionUrl: session, confirmedBytes: 0 },
+  });
+  await upload.start();
+  assert.equal(upload.state, 'completed');
+  assert.equal(calls[0].headers['Content-Range'], `bytes */${UNIT + 10}`);
+  assert.equal(calls[1].headers['Content-Range'], `bytes ${UNIT}-${UNIT + 9}/${UNIT + 10}`);
+  assert.ok(calls.every(call => !call.url.includes('generateIds')));
+});
+
+test('a failed completion checkpoint does not requeue a Google-confirmed completed file', async () => {
+  const { upload, calls } = fixture(10, [...init(), reply(200, metadata(10))], {
+    checkpoint: async current => { if (current.state === 'completed') throw new Error('Storage failed'); },
+  });
+  await upload.start();
+  assert.equal(upload.state, 'completed');
+  assert.equal(upload.confirmedBytes, 10);
+  assert.match(upload.error.message, /Storage failed/);
+  await upload.start();
+  assert.equal(calls.length, 3);
+});
+
+test('restored offset reconciles downward to the authoritative Google probe', async () => {
+  const { upload, calls } = fixture(10, [reply(308), reply(200, metadata(10))], {
+    recovery: { fileId: 'reserved', sessionUrl: session, confirmedBytes: 5 },
+  });
+  await upload.start();
+  assert.equal(upload.state, 'completed');
+  assert.equal(calls[0].headers['Content-Range'], 'bytes */10');
+  assert.equal(calls[1].headers['Content-Range'], 'bytes 0-9/10');
+});

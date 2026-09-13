@@ -3,12 +3,13 @@ import assert from 'node:assert/strict';
 import { GoogleAuth, DriveFolders, DRIVE_SCOPE, AuthRequiredError } from '../phase1/google.mjs';
 
 const json = (body, status = 200) => new Response(JSON.stringify(body), { status });
-function authFixture() {
+function authFixture(options = {}) {
   let config;
   let requested = false;
   let now = 0;
   let account = 'original';
   const auth = new GoogleAuth({
+    ...options,
     now: () => now,
     googleProvider: () => ({ accounts: { oauth2: {
       initTokenClient(options) { config = options; return { requestAccessToken() { requested = true; } }; },
@@ -53,6 +54,20 @@ test('reauthorization cannot substitute a different Drive account', async () => 
   f.setAccount('original');
   promise = f.auth.connect(); await f.respond(); await promise;
   assert.equal(f.auth.getToken(), 'test-token');
+});
+
+test('first authorization after reload must match the saved Drive account', async () => {
+  const fixture = authFixture({ getExpectedAccountId: () => 'saved-account' });
+  let connection = fixture.auth.connect();
+  const rejected = assert.rejects(connection, /original Google account/);
+  await fixture.respond(); await rejected;
+  assert.throws(() => fixture.auth.getToken(), AuthRequiredError);
+  assert.equal(fixture.auth.user, null);
+  fixture.setAccount('saved-account');
+  connection = fixture.auth.connect();
+  await fixture.respond();
+  assert.equal((await connection).permissionId, 'saved-account');
+  assert.equal(fixture.auth.getToken(), 'test-token');
 });
 
 test('denied permission and popup close recover without accepting tokens', async () => {

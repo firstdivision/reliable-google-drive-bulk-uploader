@@ -4,13 +4,13 @@ A planned mobile-first, static web app for uploading large photo/video batches d
 
 ## Current status
 
-**Phase 2 upload engine implemented; small real-device batch pass reported. Phase 3 persistence/recovery is next.** See the [Phase 2 results](docs/phase-2-testing.md#reported-results--2026-09-13) for evidence limits. The [Phase 1 results](docs/phase-1-testing.md#reported-results-2026-09-09) cover small-file upload, larger-video pause/resume, network interruption recovery, and duplicate checks. [iPhone 16 Pro / iOS 26.6.1 observations](docs/phase-0-iphone-16-pro-ios-26.6.1.md) retain the selected-tab restoration limitation.
+**Phase 3 persistence/recovery implemented; real-device restart testing pending.** The existing `/phase2/` batch page now includes saved-queue recovery. Follow the [Phase 3 test procedure](docs/phase-3-testing.md). The earlier [Phase 2 small-batch pass](docs/phase-2-testing.md#reported-results--2026-09-13) and [Phase 1 results](docs/phase-1-testing.md#reported-results-2026-09-09) do not validate restart recovery. [iPhone 16 Pro / iOS 26.6.1 observations](docs/phase-0-iphone-16-pro-ios-26.6.1.md) retain the selected-tab restoration limitation.
 
 - `phase0/index.html`: metadata-only picker baseline with count, exact total bytes, and paginated filenames/types/sizes. No file-content reads.
 - `phase0/experiments.html`: separate, explicit 64 KiB readability checks and Screen Wake Lock controls.
 - Neither page uploads or persists media or selection metadata. Both use local assets only and block script network connections with Content Security Policy.
 - `phase1/`: Google authorization, app-accessible destination folders, and a one-file resumable upload with pause and interruption recovery. State is limited to the current tab.
-- `phase2/`: in-memory multi-file queue with two concurrent uploads, selection deduplication, batch pause/resume, Retry Failed, authorization recovery, and aggregate confirmed progress. A basic mobile test page reuses Phase 1's protocol, authentication, and wake lock. Follow the [Phase 2 test procedure](docs/phase-2-testing.md).
+- `phase2/`: multi-file queue with two concurrent uploads, selection deduplication, batch pause/resume, Retry Failed, and aggregate confirmed progress. Phase 3 adds IndexedDB metadata, original-account binding, source reselection with bounded fingerprints, durable identity checkpoints, and an exclusive cross-tab lock. Media and tokens are never persisted. The basic mobile test page reuses Phase 1's protocol, authentication, and wake lock.
 
 ## Run the harness
 
@@ -50,6 +50,7 @@ node --check phase1/drive-upload.mjs
 node --check phase1/wake.js
 node --check phase2/app.mjs
 node --check phase2/upload-queue.mjs
+node --check phase2/queue-store.mjs
 node --test tests/*.test.cjs
 node --test tests/*.test.mjs
 ```
@@ -58,7 +59,7 @@ These use synthetic files and browser API doubles. They do not establish Safari 
 
 ## Roadmap and constraints
 
-Next: persistence/recovery → full mobile batch dashboard → progressive stress tests. Queue state and completed-file deduplication currently last only for this tab; reloading is not a supported recovery action. Android physical batch validation remains pending.
+Next: validate small Phase 3 restart/reselection tests → full mobile batch dashboard → progressive stress tests. Recovery requires retained browser metadata, the original sources, and the original Google account; it does not provide background uploading. Saved records may be evicted or cleared. Android physical batch/recovery validation remains pending.
 
 The intended application stack is React/TypeScript with Vite, IndexedDB, Google Identity Services, Drive REST API v3, and optional Screen Wake Lock. Media must travel directly to Google; completed files must stay completed across retries. Browser wake locks do not provide native background execution.
 

@@ -15,7 +15,7 @@
     <div><strong>BatchHarbor</strong><br>Privacy Policy</div>
   </header>
   <h1>Privacy Policy</h1>
-  <p><strong>Effective date:</strong> September 9, 2026</p>
+  <p><strong>Effective date:</strong> September 13, 2026</p>
   <p>BatchHarbor is a static, frontend-only web application. It helps you select photos and videos on your device and upload them directly from your browser to Google Drive. The project does not operate an application server that receives or stores your media.</p>
 
   <h2>Information the app accesses</h2>
@@ -41,8 +41,9 @@
   <p>The project has no advertising, analytics, data brokerage, or sale of user data. It does not share Google user data with third parties for advertising, surveillance, credit decisions, or training general-purpose AI models.</p>
 
   <h2>Storage and retention</h2>
-  <p>In the current Phase 1 and Phase 2 tests, OAuth access tokens, live file references, folder choice, resumable session URLs, queue metadata, selection identities, and progress exist only in browser memory and are not intentionally persisted by the app. They are lost when the page is reloaded or closed. Phase 2 releases its source references for completed files while keeping completion metadata in memory to avoid reuploading them in the same tab. Google Drive retains files and folders you create according to your Google account settings and Google’s policies.</p>
-  <p>Future queue recovery may store limited upload metadata in your browser’s IndexedDB. This policy will be updated before that behavior is released.</p>
+  <p>The Phase 3 recovery-enabled batch page stores queue metadata in your browser’s IndexedDB: selected filenames, sizes, media types, modification dates, upload status, confirmed progress, sanitized error information, the original Drive account permission ID, destination folder ID, Drive file IDs, resumable session URLs, and completed-file records. These records allow recovery and help prevent duplicate uploads after reopening the page. The separate Phase 1 single-file test still keeps its state only in memory.</p>
+  <p>Before uploading a file, the batch page computes and retains a SHA-256 fingerprint from at most the first and last 64 KiB to help verify reselected sources. It does not persist media bytes, live File objects, OAuth access tokens, your account display name, or email address. Tokens remain in memory and you must reconnect Google after reopening. The project host does not receive the saved metadata or fingerprints.</p>
+  <p>Saved metadata remains on this browser and device until removed through browser site-data controls or by the browser. There is no automatic retention deadline or cross-device synchronization. Optional storage protection may reduce eviction but can be denied; clearing site data still removes the records and their duplicate-prevention history. Inspect Drive before restarting if records are lost. Google Drive retains files and folders you create according to your Google account settings and Google’s policies.</p>
 
   <h2>Your choices and control</h2>
   <p>You choose which local files to select, when to connect Google, the destination, and when to begin or pause an upload. You can delete uploaded files or test folders in Google Drive and revoke the app’s access from your <a href="https://myaccount.google.com/permissions">Google Account permissions</a>. The app never deletes source media or existing Drive content.</p>

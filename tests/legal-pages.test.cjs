@@ -14,6 +14,11 @@ test('privacy policy discloses each current data flow and Limited Use compliance
     'GitHub Pages serves the static website',
     'Limited Use requirements',
     'never deletes source media',
+    'browser’s IndexedDB',
+    'resumable session URLs',
+    'does not persist media bytes, live File objects, OAuth access tokens',
+    'first and last 64 KiB',
+    'duplicate-prevention history',
   ]) assert.match(privacy, new RegExp(disclosure));
   assert.doesNotMatch(privacy, /client secret|refresh token/i);
 });

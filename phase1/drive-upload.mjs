@@ -30,11 +30,11 @@ function delay(ms, signal) {
   });
 }
 
-/** One live File and destination identity; intentionally no persistence across reloads. */
+/** One live File and destination identity; persistence is supplied by the caller. */
 export class DriveUpload {
   constructor({ file, folderId, getToken, onChange = () => {}, fetchImpl = globalThis.fetch.bind(globalThis),
     chunkSize = 8 * 1024 * 1024, maxRetries = 5, requestTimeoutMs = 120000,
-    retryBaseMs = 1000, random = Math.random }) {
+    retryBaseMs = 1000, random = Math.random, checkpoint = async () => {}, recovery = null }) {
     if (!file || !Number.isSafeInteger(file.size) || file.size <= 0 || typeof file.slice !== 'function') {
       throw new UploadError('Select a nonempty file.');
     }
@@ -42,7 +42,7 @@ export class DriveUpload {
       throw new UploadError('Invalid destination or chunk configuration.');
     }
     Object.assign(this, { file, folderId, getToken, onChange, fetchImpl, chunkSize,
-      maxRetries, requestTimeoutMs, retryBaseMs, random });
+      maxRetries, requestTimeoutMs, retryBaseMs, random, checkpoint });
     this.state = 'queued';
     this.confirmedBytes = 0;
     this.fileId = null;
@@ -50,6 +50,16 @@ export class DriveUpload {
     this.error = null;
     this.running = false;
     this.needsProbe = false;
+    if (recovery) {
+      if ((recovery.fileId !== null && (typeof recovery.fileId !== 'string' || !/^[\w-]+$/.test(recovery.fileId))) ||
+          !Number.isSafeInteger(recovery.confirmedBytes) || recovery.confirmedBytes < 0 ||
+          recovery.confirmedBytes > file.size || (recovery.sessionUrl && !recovery.fileId)) {
+        throw new UploadError('Invalid saved upload identity or offset.');
+      }
+      this.fileId = recovery.fileId;
+      this.sessionUrl = recovery.sessionUrl ? validateSession(recovery.sessionUrl) : null;
+      this.confirmedBytes = recovery.confirmedBytes;
+    }
   }
 
   change(state) { this.state = state; this.onChange(this); }
@@ -74,6 +84,7 @@ export class DriveUpload {
         const previous = this.confirmedBytes;
         try {
           await this.step();
+          await this.checkpoint(this);
           if (this.confirmedBytes > previous) failures = 0;
         } catch (error) {
           if (this.controller.signal.aborted) throw error;
@@ -85,7 +96,8 @@ export class DriveUpload {
         }
       }
     } catch (error) {
-      if (this.controller.signal.aborted) this.change('paused');
+      if (this.state === 'completed') this.error = error;
+      else if (this.controller.signal.aborted) this.change('paused');
       else { this.error = error; this.change('failed'); }
     } finally {
       this.running = false;
@@ -149,11 +161,13 @@ export class DriveUpload {
   }
 
   async step() {
+    await this.checkpoint(this);
     if (!this.fileId) {
       const response = await this.request(`${API}/generateIds?count=1&space=drive&type=files`);
       this.check(response);
       if (!/^[\w-]+$/.test(response.data?.ids?.[0] || '')) throw new UploadError('Google did not return a valid file ID.');
       this.fileId = response.data.ids[0];
+      await this.checkpoint(this);
     }
     if (!this.sessionUrl) {
       this.change('preparing');
@@ -171,6 +185,7 @@ export class DriveUpload {
       this.sessionUrl = validateSession(response.headers.get('Location'));
       this.confirmedBytes = 0;
       this.needsProbe = false;
+      await this.checkpoint(this);
     }
     this.change('uploading');
     const probe = this.needsProbe;
@@ -193,7 +208,7 @@ export class DriveUpload {
     const match = range?.match(/^bytes=0-(\d+)$/);
     if (range && !match) throw new UploadError('Google returned an invalid committed range.');
     const offset = match ? Number(match[1]) + 1 : 0;
-    if (!Number.isSafeInteger(offset) || offset > this.file.size || offset < start || (!probe && offset > end)) {
+    if (!Number.isSafeInteger(offset) || offset > this.file.size || (!probe && (offset < start || offset > end))) {
       throw new UploadError('Google returned an inconsistent committed offset.');
     }
     this.confirmedBytes = offset;

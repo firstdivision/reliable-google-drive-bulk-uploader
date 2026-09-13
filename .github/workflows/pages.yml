@@ -34,6 +34,7 @@ jobs:
           node --check phase1/wake.js
           node --check phase2/app.mjs
           node --check phase2/upload-queue.mjs
+          node --check phase2/queue-store.mjs
           node --test tests/*.test.cjs
           node --test tests/*.test.mjs
       - uses: actions/configure-pages@v5

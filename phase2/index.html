@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="referrer" content="strict-origin-when-cross-origin">
   <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' https://accounts.google.com/gsi/client; style-src 'self' https://accounts.google.com/gsi/style; connect-src https://www.googleapis.com https://accounts.google.com/gsi/; frame-src https://accounts.google.com/gsi/; img-src 'self' data:; base-uri 'none'; form-action 'none'">
-  <title>BatchHarbor — Phase 2 batch test</title>
+  <title>BatchHarbor — Phase 3 recovery test</title>
   <link rel="icon" type="image/png" href="../assets/brand/reliable-uploader-logo.png">
   <link rel="stylesheet" href="style.css">
   <script src="https://accounts.google.com/gsi/client" async></script>
@@ -16,10 +16,21 @@
 <main>
   <header class="brand">
     <a href="../"><img src="../assets/brand/reliable-uploader-logo.png" alt="BatchHarbor home"></a>
-    <div><p class="eyebrow">BatchHarbor · Phase 2</p><h1>A batch, not a juggling act.</h1></div>
+    <div><p class="eyebrow">BatchHarbor · Phase 3</p><h1>A batch, not a juggling act.</h1></div>
   </header>
-  <p class="intro">Upload photos and videos directly to Google Drive. Start with a small disposable batch to test the new queue.</p>
-  <aside><strong>Keep this tab open and your phone plugged in.</strong> Upload state lives only in this tab. Reloading or closing Safari loses the queue. Check Drive before selecting the same files again. Background uploads and restart recovery are not guaranteed.</aside>
+  <p class="intro">Upload photos and videos directly to Google Drive. Start with a small disposable batch to test recovery.</p>
+  <aside><strong>Keep this tab open and your phone plugged in during uploads.</strong> Queue metadata is saved locally, not your photos or videos. After reopening, reselect original sources and reconnect the same Google account. Uploads do not run in the background. Safari restart recovery still needs real-device validation.</aside>
+
+  <section class="card" aria-labelledby="recovery-heading">
+    <h2 id="recovery-heading">Saved batch</h2>
+    <p id="storage-status" role="status">Opening local queue storage…</p>
+    <p id="recovery-status" role="status"></p>
+    <label for="reselect">Reconnect original source files</label>
+    <input id="reselect" type="file" accept="image/*,video/*" multiple disabled>
+    <button id="retry-storage" type="button" hidden disabled>Retry saving queue</button>
+    <button id="protect-storage" type="button" disabled>Request storage protection</button>
+    <p id="retention-status" class="muted">Browser storage can be cleared or evicted. Keep your source media until you verify the uploads in Drive.</p>
+  </section>
 
   <section class="card" aria-labelledby="selection-heading">
     <h2 id="selection-heading"><span class="step">1</span> Select photos &amp; videos</h2>
@@ -89,7 +100,7 @@
     <p id="page">Page 1 of 1</p>
   </details>
   <footer>
-    <p>Media goes directly from this browser to Google Drive. No application backend, analytics, or saved tokens. Selection deduplication and completed-file records last only for this tab.</p>
+    <p>Media goes directly from this browser to Google Drive. No application backend, analytics, or saved tokens. This device stores queue metadata, source fingerprints, account and Drive IDs, session URLs, and completion records for recovery.</p>
     <p><a href="../phase1/">Single-file test</a> · <a href="../phase0/">Browser tests</a> · <a href="../privacy/">Privacy</a> · <a href="../terms/">Terms</a></p>
   </footer>
   <noscript>This test requires JavaScript.</noscript>
