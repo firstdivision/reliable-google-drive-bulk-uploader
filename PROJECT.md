@@ -840,16 +840,23 @@ Accepted implementation decisions:
   Batch history is not introduced. Following explicit user approval on 2026-09-13,
   **Start new batch** may discard that batch's local records only after confirmation
   of lost recovery/duplicate-prevention history and a warning to inspect Drive.
-  It requires successful startup, exclusive writer ownership, no active uploads,
+  It requires exclusive writer ownership, no active uploads,
   and no other controller operation. Pending saves drain before an empty snapshot
   commits atomically. Only then are in-memory queue, account binding, destination,
   and pending folder identity replaced. Save failure keeps the old queue. Cleanup
   waits for reset writes and cannot repersist the old batch after a committed reset.
   Originals and remote Drive files are never deleted; reset makes no Google request.
 - Startup has a 15-second deadline covering lock acquisition and storage open/read.
-  Timeout names the pending stage and leaves uploads/reset disabled, with a
-  **Reload saved batch** action. Late responses cannot restore records, install
-  persistence, or enable uploads in the failed controller. No automatic data reset
+  Timeout names the pending stage and leaves uploads disabled, with
+  **Reload saved batch** and guarded **Start new batch** actions in the warning.
+  Following a further user report of **Batch unavailable** on 2026-09-13, confirmed
+  reset may bypass reading/validating the unavailable records. Their count is
+  explicitly unknown. It cancels pending startup transactions, waits for prior
+  writer cleanup, reacquires the exclusive lock, and commits an empty snapshot
+  before enabling a fresh batch. Recovery lock/open/save waits are bounded too;
+  lock or storage failure keeps uploads disabled and offers retry. Late responses
+  cannot restore records, close the replacement connection, or enable stale work.
+  No automatic data reset
   or unsafe lock bypass is allowed. Browser suspension or a blocked main thread can
   delay the timer; this is not a native watchdog or proof of the phone stall's cause.
 
@@ -858,9 +865,10 @@ checks. On 2026-09-13, after deploying startup hardening and guarded reset, the 
 reported the deployed dashboard working well on their phone. This is an overall
 user-reported Phase 4 pass, not an instrumented or per-case validation. The exact
 revision, device/OS, batch size, and exercised failure paths were not supplied.
-The prior startup stall's cause remains unconfirmed; the latest report does not
-indicate a continuing blocker. Proceed with progressive keep-open tests beginning
-at 10 controlled files; do not infer production-scale or Android reliability.
+The startup stall's cause remains unconfirmed. A later report on the same day
+confirmed continued **Batch unavailable** failures, prompting the guarded recovery
+reset above. Its deployment/device verification remains pending; do not infer
+production-scale or Android reliability from earlier successful uploads.
 
 Build the batch-oriented dashboard.
 

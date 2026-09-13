@@ -12,15 +12,18 @@ Recovery after closing/reloading or losing file access is best-effort: saved
 records do not preserve access to your photos. Reselecting originals is an
 optional fallback, not the expected workflow for thousands of files. Keep Awake
 does not guarantee continued execution. Startup now has a 15-second deadline with
-a stage-specific error and non-destructive reload. The latest deployed-phone test
-was reported working well; the earlier stall's cause remains unconfirmed. See the
+a stage-specific error and non-destructive reload. Successful phone uploads have
+been reported, but saved-batch startup failures still occur and their cause remains
+unconfirmed. See the
 [device notes](docs/phase-4-testing.md).
 
-**Start new batch** appears below the upload controls when a batch has records.
+**Start new batch** appears below the upload controls and in the **Batch unavailable** warning.
 Pause first, inspect Drive, then explicitly confirm clearing local recovery and
 duplicate-prevention history. No originals or Drive files are deleted, but uploading
-the same files again may create duplicates. Reset is unavailable until saved storage
-opens safely; it does not bypass a startup failure.
+the same files again may create duplicates. From the warning, confirmed reset skips
+reading the old records but still requires exclusive tab ownership and a successful
+save of the empty batch. If storage remains unavailable, uploads stay disabled and
+the failure is shown; no records are discarded automatically.
 
 - `phase0/index.html`: metadata-only picker baseline with count, exact total bytes, and paginated filenames/types/sizes. No file-content reads.
 - `phase0/experiments.html`: separate, explicit 64 KiB readability checks and Screen Wake Lock controls.

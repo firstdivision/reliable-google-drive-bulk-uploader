@@ -297,6 +297,121 @@ test('startup deadlines identify stalled stages and ignore late successful respo
   }
 });
 
+test('confirmed new batch recovers from unreadable or invalid saved records without loading them again', async () => {
+  for (const failLoad of [false, true]) {
+    const store = new TestStore();
+    store.saved = { version: 999, items: [] };
+    store.failLoad = failLoad;
+    const harness = fixture({ store });
+    await harness.controller.initialize();
+    assert.equal(harness.snapshot().ready, false);
+    assert.equal(harness.snapshot().busy, false);
+    assert.equal(await harness.controller.startNewBatch(false), false);
+    assert.equal(store.saves.length, 0);
+    assert.equal(await harness.controller.startNewBatch(true), true);
+    assert.equal(store.loaded, 1, 'recovery skips the failed read/restore path');
+    assert.deepEqual(store.saved, { version: 1, accountId: null, folderId: null, items: [] });
+    assert.equal(harness.snapshot().ready, true);
+    assert.equal(harness.snapshot().startupError, '');
+    assert.equal(harness.locks.held, true);
+    assert.equal(harness.workers.length, 0);
+    harness.controller.select([file()]);
+    assert.equal(harness.snapshot().summary.total, 1);
+    await harness.controller.dispose();
+  }
+});
+
+test('new batch recovers from a timed-out read and ignores its late result', async () => {
+  const gate = deferred();
+  const store = new TestStore();
+  store.saved = await restoredSnapshot();
+  store.loadGate = gate.promise;
+  const harness = fixture({ store, startupTimeoutMs: 20 });
+  await harness.controller.initialize();
+  assert.match(harness.snapshot().startupError, /reading the saved batch/);
+  assert.equal(await harness.controller.startNewBatch(true), true);
+  assert.equal(store.loaded, 1);
+  harness.controller.select([file('new.mp4')]);
+  await harness.waitSnapshot(snapshot => !snapshot.summary.saving);
+  gate.resolve();
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(harness.snapshot().ready, true);
+  assert.equal(harness.snapshot().summary.total, 1);
+  assert.equal(store.closed, false, 'late read must not close the new connection');
+  assert.equal(harness.locks.held, true);
+  await harness.controller.dispose();
+  const reopened = fixture({ store });
+  await reopened.controller.initialize();
+  assert.equal(reopened.controller.getItems()[0].name, 'new.mp4');
+  await reopened.controller.dispose();
+});
+
+test('startup recovery save failure retains old records and permits an explicit retry', async () => {
+  const store = new TestStore();
+  const saved = await restoredSnapshot();
+  store.saved = saved;
+  store.failLoad = true;
+  store.failSave = true;
+  const harness = fixture({ store });
+  await harness.controller.initialize();
+  assert.equal(await harness.controller.startNewBatch(true), false);
+  assert.deepEqual(store.saved, saved);
+  assert.equal(harness.snapshot().ready, false);
+  assert.equal(harness.snapshot().busy, false);
+  assert.match(harness.snapshot().startupError, /Quota exceeded/);
+  store.failSave = false;
+  assert.equal(await harness.controller.startNewBatch(true), true);
+  assert.equal(store.loaded, 1);
+  await harness.controller.dispose();
+});
+
+test('startup recovery cannot bypass another tab or unavailable writer locks', async () => {
+  const locks = new TestLocks();
+  const owner = fixture({ lockManager: locks });
+  await owner.controller.initialize();
+  const harness = fixture({ lockManager: locks });
+  await harness.controller.initialize();
+  assert.equal(await harness.controller.startNewBatch(true), false);
+  assert.match(harness.snapshot().startupError, /another tab/);
+  assert.equal(harness.store.opened, 0);
+  assert.equal(harness.store.saves.length, 0);
+  await owner.controller.dispose();
+  assert.equal(await harness.controller.startNewBatch(true), true);
+  assert.equal(locks.held, true);
+  await harness.controller.dispose();
+  const unsupported = fixture({ lockManager: {} as DashboardLockManager });
+  await unsupported.controller.initialize();
+  assert.equal(await unsupported.controller.startNewBatch(true), false);
+  assert.match(unsupported.snapshot().startupError, /cannot safely lock/);
+  assert.equal(unsupported.store.saves.length, 0);
+  await unsupported.controller.dispose();
+});
+
+test('startup recovery bounds a stalled save and aborts it before retrying', async () => {
+  const gate = deferred();
+  class StalledStore extends TestStore {
+    override close(options?: { abortPending?: boolean }) {
+      super.close();
+      if (options?.abortPending && this.saveGate) gate.reject(new Error('Aborted recovery save.'));
+    }
+  }
+  const store = new StalledStore();
+  const saved = await restoredSnapshot();
+  store.saved = saved;
+  store.failLoad = true;
+  const harness = fixture({ store, startupTimeoutMs: 20 });
+  await harness.controller.initialize();
+  store.saveGate = gate.promise;
+  assert.equal(await harness.controller.startNewBatch(true), false);
+  assert.match(harness.snapshot().startupError, /saving the new batch/);
+  assert.equal(harness.snapshot().ready, false);
+  assert.equal(harness.snapshot().busy, false);
+  assert.deepEqual(store.saved, saved);
+  store.saveGate = undefined;
+  assert.equal(await harness.controller.startNewBatch(true), true);
+  await harness.controller.dispose();
+});
+
 test('reset requires confirmation and idle ownership; a committed empty batch unlocks destination and account', async () => {
   const store = new TestStore();
   store.saved = await restoredSnapshot();

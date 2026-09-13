@@ -36,13 +36,17 @@ test('restored dashboard prominently exposes source reselection and account reco
 });
 
 test('startup failure and offline status are visible without private HTML injection', () => {
-  const { html } = render({ ready: false, busy: true, online: false, startupError: '<script>private</script>' });
+  const { html } = render({ ready: false, busy: false, online: false, startupError: '<script>private</script>' });
   assert.match(html, /Connection interrupted/);
   assert.match(html, /&lt;script&gt;private&lt;\/script&gt;/);
   assert.doesNotMatch(html, /<script>private/);
   assert.match(html, /Batch unavailable/);
   assert.match(html, /Reload saved batch/);
   assert.match(html, /Reloading does not clear saved records/);
+  const recovery = html.match(/<section class="recovery-panel"[^]*?<\/section><\/div>/)?.[0];
+  assert.ok(recovery);
+  assert.match(recovery, /<button class="button secondary">[^]*?Start new batch<\/button>/);
+  assert.equal((html.match(/Start new batch<\/button>/g) || []).length, 1);
   const { state, controller } = render({ ready: false, busy: true });
   const settings = renderToStaticMarkup(createElement(NewBatchControl, { controller, state }));
   assert.match(settings, /<button class="button secondary" disabled="">.*?Start new batch/);

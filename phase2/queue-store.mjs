@@ -3,6 +3,7 @@ export class QueueStore {
   #name;
   #database = null;
   #opening = null;
+  #transactions = new Map();
   #closedMessage = 'Queue storage is not open. Call open() first.';
 
   constructor({ indexedDB = globalThis.indexedDB, name = 'batchharbor-queue' } = {}) {
@@ -104,20 +105,26 @@ export class QueueStore {
       let requestFailed = false;
       try {
         transaction = this.#database.transaction('state', mode, { durability: mode === 'readwrite' ? 'strict' : 'default' });
+        this.#transactions.set(transaction, reject);
         transaction.oncomplete = () => {
+          this.#transactions.delete(transaction);
           if (requestFailed) {
             reject(new Error(`Unable to ${operation} queue snapshot: IndexedDB request failed.`));
           } else {
             resolve(mode === 'readonly' ? (request.result === undefined ? null : request.result) : undefined);
           }
         };
-        transaction.onabort = () => reject(new Error(`Unable to ${operation} queue snapshot: IndexedDB transaction aborted.`));
+        transaction.onabort = () => {
+          this.#transactions.delete(transaction);
+          reject(new Error(`Unable to ${operation} queue snapshot: IndexedDB transaction aborted.`));
+        };
         transaction.onerror = () => { requestFailed = true; };
         const store = transaction.objectStore('state');
         request = mode === 'readonly' ? store.get('batch') : store.put(snapshot, 'batch');
         request.onerror = () => { requestFailed = true; };
       } catch {
         if (transaction) {
+          this.#transactions.delete(transaction);
           try { transaction.abort(); } catch {}
         }
         reject(new Error(`Unable to ${operation} queue snapshot: IndexedDB operation failed.`));
@@ -125,9 +132,16 @@ export class QueueStore {
     });
   }
 
-  close() {
+  close({ abortPending = false } = {}) {
     this.#opening?.cancel();
     this.#opening = null;
+    if (abortPending) {
+      for (const [transaction, reject] of this.#transactions) {
+        try { transaction.abort(); } catch {}
+        reject(new Error('Queue storage was closed during a transaction.'));
+      }
+      this.#transactions.clear();
+    }
     this.#database?.close();
     this.#database = null;
     this.#closedMessage = 'Queue storage is closed. Call open() before continuing.';

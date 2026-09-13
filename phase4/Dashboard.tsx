@@ -85,7 +85,7 @@ function FileDetails({ controller, state }: Props & { state: DashboardSnapshot }
 export function NewBatchControl({ controller, state }: Props & { state: DashboardSnapshot }) {
   const [confirming, setConfirming] = useState(false);
   const [confirmed, setConfirmed] = useState(false);
-  const disabled = !state.ready || state.busy || state.summary.enabled || state.summary.active > 0;
+  const disabled = (!state.ready && !state.startupError) || state.busy || state.summary.enabled || state.summary.active > 0;
   return <section className="new-batch-section" aria-label="Start a new batch">
     {!confirming ? <button className="button secondary" disabled={disabled} onClick={() => { setConfirmed(false); setConfirming(true); }}>
       <FolderPlus size={18} />Start new batch</button> : <form aria-labelledby="reset-title" onSubmit={event => {
@@ -93,7 +93,8 @@ export function NewBatchControl({ controller, state }: Props & { state: Dashboar
       void controller.startNewBatch(confirmed).then(success => { if (success) { setConfirming(false); setConfirmed(false); } });
     }}>
       <h2 id="reset-title">Discard this batch's local records?</h2>
-      <p>This clears {state.summary.total.toLocaleString()} file records, including {state.summary.counts.completed.toLocaleString()} completed entries, saved progress, and the destination. Recovery and duplicate-prevention history for this batch will be lost. Uploading the same files again may create duplicates.</p>
+      <p>{state.startupError ? 'The saved batch could not be read, so its file count and progress are unknown. This clears all local records for that batch, including completed entries, saved progress, and the destination.'
+        : `This clears ${state.summary.total.toLocaleString()} file records, including ${state.summary.counts.completed.toLocaleString()} completed entries, saved progress, and the destination.`} Recovery and duplicate-prevention history for this batch will be lost. Uploading the same files again may create duplicates.</p>
       <p>No original photos or videos and no files already in Google Drive will be deleted. Check Drive before continuing.</p>
       {state.folderId && <p><a href={`https://drive.google.com/drive/folders/${encodeURIComponent(state.folderId)}`} target="_blank" rel="noopener noreferrer">Inspect destination in Drive <ArrowRight size={16} /></a></p>}
       <label className="reset-confirm"><input type="checkbox" checked={confirmed} disabled={disabled} onChange={event => setConfirmed(event.target.checked)} />
@@ -101,7 +102,7 @@ export function NewBatchControl({ controller, state }: Props & { state: Dashboar
       <div className="reset-actions"><button type="button" className="button secondary" disabled={state.busy} onClick={() => { setConfirming(false); setConfirmed(false); }}>Cancel</button>
         <button type="submit" className="button retry" disabled={disabled || !confirmed}><FolderPlus size={18} />Clear records and start new batch</button></div>
     </form>}
-    {disabled && <p className="small muted">{!state.ready ? 'Saved storage must open safely before a batch can be replaced.' : state.busy ? 'Wait for the current operation to finish.' : 'Pause uploads and wait for active requests to stop before starting a new batch.'}</p>}
+    {disabled && <p className="small muted">{state.busy ? 'Wait for the current operation to finish.' : !state.ready ? 'Wait for the saved batch to open.' : 'Pause uploads and wait for active requests to stop before starting a new batch.'}</p>}
   </section>;
 }
 
@@ -152,8 +153,9 @@ export function Dashboard({ controller }: Props) {
           {blocker.kind === 'sources' && <FilePicker id="recovery-files" label="Select originals again" recovery disabled={sourceDisabled} onFiles={files => void controller.reconnectSources(files)} />}
           {blocker.kind === 'account' && <a className="button secondary" href="#destination"><Link2 size={18} />Connect Google</a>}
           {blocker.kind === 'storage' && <button className="button secondary" disabled={state.busy || summary.active > 0} onClick={() => void controller.retryStorage()}><RotateCcw size={18} />Retry saving</button>}
-          {blocker.kind === 'startup' && <><button className="button secondary" onClick={() => window.location.reload()}><RefreshCw size={18} />Reload saved batch</button>
-            <p className="small">Uploads and batch reset remain disabled until storage opens safely. Reloading does not clear saved records.</p></>}
+          {blocker.kind === 'startup' && <><button className="button secondary" disabled={state.busy} onClick={() => window.location.reload()}><RefreshCw size={18} />Reload saved batch</button>
+            <p className="small">Reloading does not clear saved records. Starting a new batch discards this batch's local recovery history after confirmation.</p>
+            <NewBatchControl controller={controller} state={state} /></>}
         </div>)}
         {summary.missingSources > 0 && <p className="small">Choose the same photos and videos, including completed ones if easier. Completed files are skipped. Reconnecting does not upload anything until you resume.</p>}
       </section>}
@@ -193,9 +195,9 @@ export function Dashboard({ controller }: Props) {
           {summary.enabled ? <button className="button primary" onClick={() => controller.pause()}><Pause size={21} />Pause All</button> :
             <button className="button primary" disabled={!view.canResume} aria-describedby={!view.canResume && !view.complete ? 'resume-reason' : undefined} onClick={() => controller.start()}>{view.complete ? <CheckCircle2 size={21} /> : started ? <Play size={21} /> : <Upload size={21} />}{view.complete ? 'All uploaded' : started ? 'Resume upload' : 'Upload All'}</button>}
           {summary.counts.failed > 0 && <button className="button retry" disabled={!view.canRetry} onClick={() => controller.retryFailed()}><RotateCcw size={20} />Retry Failed ({summary.counts.failed.toLocaleString()})</button>}
-          <NewBatchControl controller={controller} state={state} />
+          {!state.startupError && <NewBatchControl controller={controller} state={state} />}
         </div>
-        {!summary.enabled && !view.canResume && !view.complete && <p className="blocked-reason" id="resume-reason">{state.startupError ? 'Startup failed. Review the message above and reload to retry.' : state.busy ? 'Wait for the current operation to finish.' : !summary.total ? 'Select files, connect Google, and choose a destination to begin.' :
+        {!summary.enabled && !view.canResume && !view.complete && <p className="blocked-reason" id="resume-reason">{state.startupError ? 'Startup failed. Reload the saved batch or start a new batch above.' : state.busy ? 'Wait for the current operation to finish.' : !summary.total ? 'Select files, connect Google, and choose a destination to begin.' :
           summary.remaining === summary.missingSources ? 'Resume is unavailable until you select the originals again.' :
           !state.connected ? 'Connect Google to enable upload.' : !state.folderId ? 'Choose a destination to enable upload.' :
           summary.counts.failed ? 'Use Retry Failed to retry failed entries.' : view.blockers[0]?.message || 'Waiting for active requests to stop.'}</p>}

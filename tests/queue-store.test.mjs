@@ -190,6 +190,25 @@ test('save resolves only on commit and concurrent saves retain invocation order'
   assert.deepEqual(await loading, { sequence: 2 });
 });
 
+test('recovery close aborts pending transactions and prevents a late overwrite after reopen', async () => {
+  const database = fixture();
+  const store = new QueueStore({ indexedDB: database.indexedDB });
+  await store.open();
+  await store.save({ retained: true });
+  const saving = store.save({ stale: true });
+  const loading = store.load();
+  const rejected = Promise.all([
+    assert.rejects(saving, /closed during a transaction/),
+    assert.rejects(loading, /closed during a transaction/),
+  ]);
+  store.close({ abortPending: true });
+  await rejected;
+  await store.open();
+  assert.deepEqual(await store.load(), { retained: true });
+  await store.save({ fresh: true });
+  assert.deepEqual(await store.load(), { fresh: true });
+});
+
 test('transaction abort after request success rejects and retains the previous snapshot', async () => {
   const database = fixture();
   const store = new QueueStore({ indexedDB: database.indexedDB });

@@ -10,9 +10,11 @@ The user initially reported the phone remaining at "Before you continue / Openin
 saved batch". After deployment of startup hardening and guarded batch reset, the
 user reported: "I tried it on my phone from the deployed site. It is working well."
 
-Record this as an overall user-reported deployed-phone pass. The latest report
-does not indicate a continuing startup blocker, but it does not establish the
-original cause or prove which change addressed it. The exact revision, phone/OS,
+Record this as an overall user-reported deployed-phone pass at that point, not
+proof that startup was fixed. A later report on the same day confirmed that loading
+a saved batch still reaches **Batch unavailable**, with no way to start fresh.
+The warning now offers guarded **Start new batch** as well as **Reload saved batch**.
+The underlying cause and deployed-device recovery remain unverified. The exact revision, phone/OS,
 file count/bytes, and individual reset, retry, wake, and failure-path results were
 not supplied. Do not infer large-batch, all-lifecycle, iPad, or Android coverage.
 Follow-up: after the keep-open test, including requested Drive count, size, and
@@ -32,6 +34,16 @@ large-selection success is not a completed-transfer or storage-safety pass.
 Startup hardening now stops the wait after 15 seconds of runnable browser time and
 reports the pending stage: acquiring the tab lock, opening browser queue storage,
 or reading the saved batch. **Reload saved batch** retries without deleting records.
+After explicit confirmation, **Start new batch** skips the unreadable saved records,
+reacquires the writer lock, and saves an empty batch before enabling file selection.
+The warning reports unknown counts instead of claiming there are zero saved files.
+Recovery also bounds lock cleanup, storage opening, and saving the empty batch.
+Pending startup transactions are aborted on failure; ordinary shutdown still drains
+writes. This follows the distinction between IndexedDB
+[close](https://developer.mozilla.org/en-US/docs/Web/API/IDBDatabase/close), which
+allows existing transactions to finish, and
+[abort](https://developer.mozilla.org/en-US/docs/Web/API/IDBTransaction/abort), which
+rolls back uncommitted changes. Another tab's lock or unavailable storage cannot be bypassed.
 Late responses cannot revive the failed controller. This bounds the UI wait; it
 does not establish or repair the underlying Safari failure without device evidence.
 
@@ -55,15 +67,16 @@ share one saved queue and writer lock. Existing recovery data is reused, not res
   and a prominent Keep Awake switch with actual acquisition status.
 - Separate source reselection and Google reconnection steps after reopening.
 - Failure/source filters and 50-row detail pages; no thousands-row default rendering.
-- Storage settings and guarded Start new batch are on the Settings view; denied protection explicitly does not mean save
+- Guarded Start new batch appears below upload controls, in storage Settings for loaded batches, and directly in the startup warning. Denied protection explicitly does not mean save
   failure. Same privacy boundary, OAuth scope, durable IDs, and upload protocol.
 
 One saved batch keeps its destination and account. Add More joins it. The user
 approved **Start new batch** after reporting the old-batch problem. It requires a
 confirmation checkbox and a separate commit action, clears local records including
 completed history, and permits a new account/destination. It never deletes originals
-or Drive files. It is blocked during uploads, other operations, or failed startup;
-it can discard a successfully loaded batch without reselecting missing originals.
+or Drive files. It is blocked during uploads and other operations. Failed startup
+permits an explicitly confirmed recovery reset without loading the old records;
+it can also discard a loaded batch without reselecting missing originals.
 Reset waits for prior writes and publishes an empty batch only after its durable
 save succeeds. There is no batch-history UI. Removing unstarted entries is local only.
 Source matching remains metadata plus bounded fingerprints, not whole-file equality.
@@ -105,6 +118,12 @@ sources for those checks.
    Check that the empty batch survives reload, a new account/destination can be
    chosen, and the original source/Drive files remain. Do not reupload old files
    expecting the discarded duplicate-prevention records to protect them.
+12. If **Batch unavailable** appears, use **Start new batch** in that warning.
+   Check the unknown-count and duplicate-history warnings. Cancel must preserve
+   saved records. After checking Drive, confirm only if discarding local recovery
+   history is acceptable. File selection should become available, and the new
+   batch should survive reload. If another tab owns the batch or saving fails,
+   expect an actionable error with uploads still disabled, not a silent reset.
 
 Record loaded revision, device/OS/browser, sample size/count, results per case,
 and any unexercised auth/session expiry. Avoid private filenames, tokens, and session
@@ -129,10 +148,23 @@ source-backed control eligibility, ETA resets, safe rendering, and explicit reco
 messages. Waits use observable conditions for asynchronous file preparation.
 
 Startup/reset regressions additionally hold lock/open/read stages past the deadline,
-release them late, reject reset before startup/during active uploads/without consent,
+release them late, reject reset before startup finishes/during active uploads/without consent,
 fail reset saves, and close the controller during a reset commit. Account switching
 after reset is tested with the real GoogleAuth implementation and mocked Google.
 Normal token invalidation still preserves the original-account restriction.
+Recovery regressions cover unreadable/invalid snapshots, a stalled read released
+after successful reset, lock exclusion, failed reset-save retry, bounded stalled
+saves, pending transaction abort, and a single enabled reset in the startup warning.
+
+The failed-startup reset follow-up passed 138 tests (99 JavaScript, 39 TypeScript),
+type checking, linting, and the production build. A fresh local preview origin
+with a synthetic unsupported snapshot verified that the warning offers reset,
+Cancel preserves records across reload, consent is required again, and confirmed
+reset persists an empty batch and enables selection after reload. Geometry checks
+at 390px and 1280px found no horizontal/text overflow in recovery controls; warning
+and narrow confirmation-button screenshots were inspected. Google requests were
+blocked during this test; no real uploads or existing user records were touched.
+This is desktop-browser evidence, not verification of the reported phone failure.
 
 The production desktop-browser follow-up used only synthetic files on an isolated
 local origin. Cancel retained two entries; confirmed reset survived reload. A

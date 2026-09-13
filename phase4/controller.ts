@@ -78,7 +78,7 @@ export interface DashboardStore {
   open(): Promise<unknown>;
   load(): Promise<unknown>;
   save(snapshot: unknown): Promise<unknown>;
-  close(): void;
+  close(options?: { abortPending?: boolean }): void;
 }
 export interface DashboardQueueItem extends Omit<DashboardItem, 'hasSource' | 'error'> {
   file: File | null;
@@ -268,12 +268,18 @@ export class DashboardController {
     this.window?.addEventListener('online', this.networkChanged);
     this.window?.addEventListener('offline', this.networkChanged);
     this.document?.addEventListener('visibilitychange', this.visibilityChanged);
+    return this.openBatch();
+  }
+
+  private openBatch(discardSaved = false): Promise<void> {
+    this.startupStopped = false;
+    this.busy = true;
     let initialized!: () => void;
     this.initialization = new Promise(resolve => { initialized = resolve; });
     const held = new Promise<void>(resolve => { this.releaseWriter = resolve; });
     let stage = 'acquiring the batch tab lock';
     const deadline = setTimeout(() => {
-      this.startupFailed(new Error(`Startup timed out while ${stage}. Close other BatchHarbor tabs, then reload. If it repeats, report this stage; do not clear website data to retry.`));
+      this.startupFailed(new Error(`Startup timed out while ${stage}. Close other BatchHarbor tabs, then reload. If it repeats, report this stage; do not clear website data to retry.`), discardSaved);
     }, this.startupTimeoutMs);
     this.finishStartup = () => { clearTimeout(deadline); initialized(); };
     try {
@@ -282,35 +288,47 @@ export class DashboardController {
         if (this.disposed || this.startupStopped) return;
         if (!lock) throw new Error('This batch is open in another tab. Close that tab, then reload this page.');
         stage = 'opening browser queue storage';
-        await this.store.open();
-        if (this.disposed || this.startupStopped) { this.store.close(); return; }
-        stage = 'reading the saved batch';
-        const saved = await this.store.load();
-        if (this.disposed || this.startupStopped) { this.store.close(); return; }
-        stage = 'validating the saved batch';
-        if (saved !== null) this.queue.restore(saved);
+        await Promise.race([this.store.open(), held]);
+        if (this.disposed || this.startupStopped) return;
+        if (discardSaved) {
+          stage = 'saving the new batch';
+          const next = this.createQueue();
+          await Promise.race([this.trackWrite(this.store.save(next.snapshot())), held]);
+          if (this.disposed || this.startupStopped) return;
+          this.installNewBatch(next);
+        } else {
+          stage = 'reading the saved batch';
+          const saved = await Promise.race([this.store.load(), held]);
+          if (this.disposed || this.startupStopped) return;
+          stage = 'validating the saved batch';
+          if (saved !== null) this.queue.restore(saved);
+        }
         this.queue.saveSnapshot = snapshot => this.store.save(snapshot);
+        this.startupError = '';
         this.ready = true;
-        this.busy = false;
+        this.busy = discardSaved;
         this.emit();
         this.finishStartup?.();
         await held;
-      }).catch(error => { this.startupFailed(error); }).finally(() => this.finishStartup?.());
+      }).catch(error => { this.startupFailed(error, discardSaved); }).finally(() => this.finishStartup?.());
     } catch (error) {
-      this.startupFailed(error);
+      this.startupFailed(error, discardSaved);
     }
+    this.emit();
     return this.initialization;
   }
 
-  private startupFailed(error: unknown): void {
+  private startupFailed(error: unknown, discardSaved = false): void {
     if (this.disposed || this.startupStopped) return;
     this.startupStopped = true;
     this.finishStartup?.();
-    this.store.close();
+    this.store.close({ abortPending: true });
     this.releaseWriter?.();
-    this.startupError = `${messageOf(error)} Saved data has not been replaced. Reload to retry.`;
+    this.startupError = `${messageOf(error)} ${discardSaved
+      ? 'New batch could not be opened. Reload to check saved records, or try Start new batch again.'
+      : 'Saved data has not been replaced. Reload to retry, or start a new batch.'}`;
     this.ready = false;
-    this.busy = true;
+    this.busy = false;
     this.emit();
   }
 
@@ -491,6 +509,33 @@ export class DashboardController {
   }
 
   async startNewBatch(confirmed: boolean): Promise<boolean> {
+    if (!this.ready && this.startupError && !this.busy && !this.disposed) {
+      if (!confirmed) {
+        this.failure(new Error('Confirm that you checked Drive and accept losing saved recovery and duplicate-prevention history.'));
+        this.emit();
+        return false;
+      }
+      this.busy = true;
+      this.resetting = true;
+      this.actionMessage = '';
+      this.emit();
+      let deadline: ReturnType<typeof setTimeout> | undefined;
+      try {
+        await Promise.race([Promise.allSettled([this.lockTask, ...this.writes]), new Promise<never>((_, reject) => {
+          deadline = setTimeout(() => reject(new Error('The previous startup has not finished closing. Reload this page before starting a new batch.')), this.startupTimeoutMs);
+        })]);
+        clearTimeout(deadline);
+        if (this.disposed) return false;
+        await this.openBatch(true);
+        return this.ready;
+      } catch (error) { this.failure(error); return false; }
+      finally {
+        clearTimeout(deadline);
+        this.resetting = false;
+        this.busy = false;
+        this.emit();
+      }
+    }
     let replaced = false;
     await this.asyncAction(async () => {
       if (!confirmed) throw new Error('Confirm that you checked Drive and accept losing saved recovery and duplicate-prevention history.');
@@ -505,23 +550,27 @@ export class DashboardController {
           if (this.disposed) return;
           const next = this.createQueue();
           await this.store.save(next.snapshot());
-          previous.saveSnapshot = null;
-          this.queue = next;
+          this.installNewBatch(next);
           next.saveSnapshot = snapshot => this.store.save(snapshot);
-          this.auth.resetAccount();
-          this.foldersApi.resetPending?.();
-          this.connected = false;
-          this.lastAuthRequired = false;
-          this.folderId = '';
-          this.folders = [];
-          this.accountLabel = '';
-          this.selectionMessage = '';
-          this.actionMessage = 'New batch ready. Previous local recovery records were cleared. No originals or Drive files were deleted.';
           replaced = true;
         })());
       } finally { this.resetting = false; }
     }, false);
     return replaced;
+  }
+
+  private installNewBatch(next: DashboardQueue): void {
+    this.queue.saveSnapshot = null;
+    this.queue = next;
+    this.auth.resetAccount();
+    this.foldersApi.resetPending?.();
+    this.connected = false;
+    this.lastAuthRequired = false;
+    this.folderId = '';
+    this.folders = [];
+    this.accountLabel = '';
+    this.selectionMessage = '';
+    this.actionMessage = 'New batch ready. Previous local recovery records were cleared. No originals or Drive files were deleted.';
   }
 
   retryStorage(): Promise<void> {
@@ -641,7 +690,7 @@ export class DashboardController {
     if (!this.ready) {
       this.startupStopped = true;
       this.finishStartup?.();
-      this.store.close();
+      this.store.close({ abortPending: true });
       this.releaseWriter?.();
     }
     if (this.renderTimer !== undefined) clearTimeout(this.renderTimer);
