@@ -31,6 +31,30 @@ test('homepage presents the independent BatchHarbor brand and policy links', () 
   assert.doesNotMatch(homepage, /<script|<form|google-analytics|googletagmanager/i);
 });
 
+test('home and app expose static Open Graph metadata with a deployable preview image', () => {
+  const origin = 'https://batchharbor.killfly.com';
+  for (const [source, path, title] of [
+    [homepage, '/', 'Reliable photo and video uploads'],
+    [readFileSync('phase4/index.html', 'utf8'), '/app/', 'Upload to Google Drive'],
+  ]) {
+    const head = source.split('</head>')[0];
+    const metadata = Object.fromEntries(Array.from(head.matchAll(/<meta property="([^"]+)" content="([^"]+)"/g), match => [match[1], match[2]]));
+    assert.equal(metadata['og:type'], 'website');
+    assert.equal(metadata['og:site_name'], 'BatchHarbor');
+    assert.equal(metadata['og:title'], title);
+    assert.match(metadata['og:description'], /directly from your browser/);
+    assert.equal(metadata['og:url'], `${origin}${path}`);
+    assert.equal(metadata['og:image'], `${origin}/assets/brand/reliable-uploader-logo.png`);
+    assert.equal(metadata['og:image:type'], 'image/png');
+    assert.equal(metadata['og:image:alt'], 'BatchHarbor logo');
+    const image = readFileSync(`.${new URL(metadata['og:image']).pathname}`);
+    assert.equal(Number(metadata['og:image:width']), image.readUInt32BE(16));
+    assert.equal(Number(metadata['og:image:height']), image.readUInt32BE(20));
+    assert.ok(image.byteLength < 10 * 1024 * 1024);
+    assert.match(head, /rel="apple-touch-icon"/);
+  }
+});
+
 test('legal pages have no scripts, forms, analytics, or remote embedded content', () => {
   for (const page of [privacy, terms]) {
     assert.doesNotMatch(page, /<script|<form|google-analytics|googletagmanager/i);

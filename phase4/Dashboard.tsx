@@ -193,6 +193,7 @@ export function Dashboard({ controller }: Props) {
           {summary.enabled ? <button className="button primary" onClick={() => controller.pause()}><Pause size={21} />Pause All</button> :
             <button className="button primary" disabled={!view.canResume} aria-describedby={!view.canResume && !view.complete ? 'resume-reason' : undefined} onClick={() => controller.start()}>{view.complete ? <CheckCircle2 size={21} /> : started ? <Play size={21} /> : <Upload size={21} />}{view.complete ? 'All uploaded' : started ? 'Resume upload' : 'Upload All'}</button>}
           {summary.counts.failed > 0 && <button className="button retry" disabled={!view.canRetry} onClick={() => controller.retryFailed()}><RotateCcw size={20} />Retry Failed ({summary.counts.failed.toLocaleString()})</button>}
+          <NewBatchControl controller={controller} state={state} />
         </div>
         {!summary.enabled && !view.canResume && !view.complete && <p className="blocked-reason" id="resume-reason">{state.startupError ? 'Startup failed. Review the message above and reload to retry.' : state.busy ? 'Wait for the current operation to finish.' : !summary.total ? 'Select files, connect Google, and choose a destination to begin.' :
           summary.remaining === summary.missingSources ? 'Resume is unavailable until you select the originals again.' :

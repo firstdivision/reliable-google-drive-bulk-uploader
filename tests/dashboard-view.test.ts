@@ -31,7 +31,8 @@ test('restored dashboard prominently exposes source reselection and account reco
   assert.match(html, /1,000 of 5,000 files complete/);
   assert.equal(detailsReads, 0, 'closed details do not copy the 5,000-file list');
   assert.match(html, /href="#settings" aria-label="Settings"/);
-  assert.doesNotMatch(html, /Start new batch|Request storage protection|Browse Google Drive/);
+  assert.match(html, /Resume upload<\/button>[^]*?Start new batch<\/button>/);
+  assert.doesNotMatch(html, /Request storage protection|Browse Google Drive/);
 });
 
 test('startup failure and offline status are visible without private HTML injection', () => {
@@ -66,7 +67,8 @@ test('main page keeps both checklist steps visible and requires files and a conn
         assert.match(html, /Photos &amp; videos/);
         assert.match(html, /Destination folder/);
         assert.match(html, /href="#destination"/);
-        assert.doesNotMatch(html, /<select|Browse Google Drive|Reconnect<|Start new batch|<progress/);
+        assert.doesNotMatch(html, /<select|Browse Google Drive|Reconnect<|<progress/);
+        assert.match(html, /Upload All<\/button>[^]*?<button class="button secondary">[^]*?Start new batch<\/button>/);
         const button = html.match(/<button class="button primary"([^>]*)>.*?Upload All<\/button>/);
         assert.ok(button);
         assert.equal(button[1].includes('disabled'), !(total && connected && folderId));
@@ -101,5 +103,6 @@ test('active main page retains checklist and exposes pause and retry without set
   assert.match(html, /Pause All/);
   assert.match(html, /Retry Failed \(3\)/);
   assert.match(html, /3,994<\/dd><dt>Waiting/);
-  assert.doesNotMatch(html, /Browse Google Drive|Start new batch|Request storage protection/);
+  assert.match(html, /<button class="button secondary" disabled="">[^]*?Start new batch<\/button>/);
+  assert.doesNotMatch(html, /Browse Google Drive|Request storage protection/);
 });
