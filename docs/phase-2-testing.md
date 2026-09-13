@@ -1,7 +1,8 @@
 # Phase 2 batch queue
 
-Status: implemented with automated synthetic tests; real Drive/iPhone batch
-validation pending. Phase 1's user-reported single-file pass is not a batch pass.
+Status: implemented with automated synthetic tests and a user-reported small
+real-device batch pass on 2026-09-13. See the reported results below for evidence
+limits; Android physical validation remains pending.
 
 After publishing, open [the Phase 2 page](https://batchharbor.killfly.com/phase2/)
 over HTTPS. Use the same OAuth origin and test-account setup as
@@ -98,6 +99,24 @@ batch does not establish thousands-of-files, multi-hour, or restart reliability.
 
 These checks do not exercise native iPhone/Android picker behavior, real Google
 CORS/OAuth, physical Wake Lock, or batch interruption recovery on a device.
+
+## Reported results — 2026-09-13
+
+The user reported "ok, that worked" after being asked to run the small iPhone
+Safari batch sequence: overlapping selection/Add More, two-worker uploads with
+Keep Awake, pause/resume, network interruption, Retry Failed if needed, and
+verification of completed file contents, sizes, and absence of duplicates.
+
+This is an overall user-reported pass, not an agent-operated or instrumented test.
+Individual checklist results, device/OS/browser version, loaded revision, file
+counts/sizes, duration, and Safari storage observations were not separately
+supplied. Retry Failed and actual authorization expiry were not separately
+confirmed as exercised. No private file identifiers or credentials are recorded.
+
+**Decision: proceed to Phase 3, persistence and recovery.** This result does not
+validate reload/termination recovery, thousands-of-files batches, multi-hour
+transfers, or Android behavior. Queue state remains limited to the current tab,
+and the Phase 0 selected-tab restoration limitation remains.
 
 ## Android checklist (physical validation deferred)
 

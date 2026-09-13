@@ -670,8 +670,12 @@ Decision: retain dependency-free JavaScript modules for this engine/test slice,
 reusing the real-device-tested Phase 1 protocol rather than combining this phase
 with a React/Vite migration. The intended full application stack remains
 React/TypeScript; engine logic stays independent of UI. IndexedDB/restart
-recovery remains Phase 3 and the full dashboard remains Phase 4. Real-iPhone
-batch and Android validation are pending; see the [Phase 2 test procedure](docs/phase-2-testing.md).
+recovery remains Phase 3 and the full dashboard remains Phase 4. A small real-device
+batch pass was reported by the user on 2026-09-13, clearing the gate to Phase 3;
+individual checklist results and device details were not separately supplied.
+Android physical validation remains pending; see the [Phase 2 test procedure and
+results](docs/phase-2-testing.md) for evidence limits. This is not validation of
+large batches, multi-hour transfers, or restart recovery.
 
 Implement:
 

@@ -4,7 +4,7 @@ A planned mobile-first, static web app for uploading large photo/video batches d
 
 ## Current status
 
-**Phase 2 upload engine implemented; real-device batch testing pending.** The [Phase 1 results](docs/phase-1-testing.md#reported-results-2026-09-09) cover small-file upload, larger-video pause/resume, network interruption recovery, and duplicate checks. [iPhone 16 Pro / iOS 26.6.1 observations](docs/phase-0-iphone-16-pro-ios-26.6.1.md) retain the selected-tab restoration limitation.
+**Phase 2 upload engine implemented; small real-device batch pass reported. Phase 3 persistence/recovery is next.** See the [Phase 2 results](docs/phase-2-testing.md#reported-results--2026-09-13) for evidence limits. The [Phase 1 results](docs/phase-1-testing.md#reported-results-2026-09-09) cover small-file upload, larger-video pause/resume, network interruption recovery, and duplicate checks. [iPhone 16 Pro / iOS 26.6.1 observations](docs/phase-0-iphone-16-pro-ios-26.6.1.md) retain the selected-tab restoration limitation.
 
 - `phase0/index.html`: metadata-only picker baseline with count, exact total bytes, and paginated filenames/types/sizes. No file-content reads.
 - `phase0/experiments.html`: separate, explicit 64 KiB readability checks and Screen Wake Lock controls.
@@ -58,7 +58,7 @@ These use synthetic files and browser API doubles. They do not establish Safari 
 
 ## Roadmap and constraints
 
-Next: validate Phase 2 with small real-device batches, then persistence/recovery → full mobile batch dashboard → progressive stress tests. Queue state and completed-file deduplication currently last only for this tab; reloading is not a supported recovery action.
+Next: persistence/recovery → full mobile batch dashboard → progressive stress tests. Queue state and completed-file deduplication currently last only for this tab; reloading is not a supported recovery action. Android physical batch validation remains pending.
 
 The intended application stack is React/TypeScript with Vite, IndexedDB, Google Identity Services, Drive REST API v3, and optional Screen Wake Lock. Media must travel directly to Google; completed files must stay completed across retries. Browser wake locks do not provide native background execution.
 
