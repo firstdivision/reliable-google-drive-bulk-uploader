@@ -44,6 +44,7 @@ export interface DashboardSnapshot {
   connected: boolean;
   startupError: string;
   startupProgress: { message: string; elapsedSeconds: number } | null;
+  resetProgress: { message: string; elapsedSeconds: number } | null;
   actionMessage: string;
   selectionMessage: string;
   storageMessage: string;
@@ -168,6 +169,9 @@ export class DashboardController {
   private lastAuthRequired = false;
   private startupError = '';
   private startupProgress: DashboardSnapshot['startupProgress'] = { message: 'Waiting to open this batch...', elapsedSeconds: 0 };
+  private resetProgress: DashboardSnapshot['resetProgress'] = null;
+  private resetStartedAt = 0;
+  private resetTimer?: ReturnType<typeof setInterval>;
   private actionMessage = '';
   private selectionMessage = '';
   private retentionMessage = '';
@@ -229,8 +233,9 @@ export class DashboardController {
       ready: this.ready, busy: this.busy, connected: this.connected,
       startupError: this.startupError, actionMessage: this.actionMessage,
       startupProgress: this.startupProgress ? { ...this.startupProgress } : null,
+      resetProgress: this.resetProgress ? { ...this.resetProgress } : null,
       selectionMessage: this.selectionMessage, retentionMessage: this.retentionMessage,
-      storageMessage: this.startupError || (summary.storageError ? summary.storageError.message : !this.ready
+      storageMessage: this.resetProgress?.message || this.startupError || (summary.storageError ? summary.storageError.message : !this.ready
         ? this.startupProgress?.message || 'Opening saved queue...' : summary.saving ? 'Saving queue metadata on this device...'
           : 'Queue metadata saved on this device. Browser data clearing can still remove it.'),
       folderId, folderName: this.folders.find(folder => folder.id === folderId)?.name || (folderId ? 'Saved batch destination' : ''),
@@ -286,9 +291,10 @@ export class DashboardController {
     const updateStage = (nextStage: string, message: string) => {
       stage = nextStage;
       this.startupProgress = { message, elapsedSeconds: Math.floor((performance.now() - startedAt) / 1000) };
-      this.emit();
+      if (discardSaved) this.reportResetProgress(message);
+      else this.emit();
     };
-    const activity = setInterval(() => {
+    const activity = discardSaved ? undefined : setInterval(() => {
       if (!this.startupProgress || this.disposed || this.startupStopped) return;
       this.startupProgress = { ...this.startupProgress, elapsedSeconds: Math.floor((performance.now() - startedAt) / 1000) };
       this.emit();
@@ -297,6 +303,7 @@ export class DashboardController {
       this.startupFailed(new Error(`Startup timed out while ${stage}. Close other BatchHarbor tabs, then reload. If it repeats, report this stage; do not clear website data to retry.`), discardSaved);
     }, this.startupTimeoutMs);
     this.finishStartup = () => { clearTimeout(deadline); clearInterval(activity); initialized(); };
+    if (discardSaved) this.reportResetProgress(this.startupProgress.message);
     try {
       if (!this.locks?.request) throw new Error('This browser cannot safely lock the saved queue. Use a current browser over HTTPS.');
       this.lockTask = this.locks.request('batchharbor-queue-writer', { ifAvailable: true }, async lock => {
@@ -525,6 +532,24 @@ export class DashboardController {
     });
   }
 
+  private reportResetProgress(message: string): void {
+    if (this.disposed) return;
+    if (!this.resetProgress) {
+      this.resetStartedAt = performance.now();
+      this.resetTimer = setInterval(() => {
+        if (this.resetProgress) this.reportResetProgress(this.resetProgress.message);
+      }, 1000);
+    }
+    this.resetProgress = { message, elapsedSeconds: Math.floor((performance.now() - this.resetStartedAt) / 1000) };
+    this.emit();
+  }
+
+  private finishResetProgress(): void {
+    clearInterval(this.resetTimer);
+    this.resetTimer = undefined;
+    this.resetProgress = null;
+  }
+
   async startNewBatch(confirmed: boolean): Promise<boolean> {
     if (!this.ready && this.startupError && !this.busy && !this.disposed) {
       if (!confirmed) {
@@ -535,7 +560,7 @@ export class DashboardController {
       this.busy = true;
       this.resetting = true;
       this.actionMessage = '';
-      this.emit();
+      this.reportResetProgress('Closing the previous batch operation and waiting for pending saves...');
       let deadline: ReturnType<typeof setTimeout> | undefined;
       try {
         await Promise.race([Promise.allSettled([this.lockTask, ...this.writes]), new Promise<never>((_, reject) => {
@@ -548,6 +573,7 @@ export class DashboardController {
       } catch (error) { this.failure(error); return false; }
       finally {
         clearTimeout(deadline);
+        this.finishResetProgress();
         this.resetting = false;
         this.busy = false;
         this.emit();
@@ -558,20 +584,23 @@ export class DashboardController {
       if (!confirmed) throw new Error('Confirm that you checked Drive and accept losing saved recovery and duplicate-prevention history.');
       this.requireIdle();
       this.resetting = true;
+      this.reportResetProgress('Waiting for pending saves to finish...');
       try {
         await this.trackWrite((async () => {
           const previous = this.queue;
           if (previous.saving) await previous.saving.catch(() => {});
           if (this.disposed) return;
+          this.reportResetProgress('Opening batch storage on this device...');
           await this.store.open();
           if (this.disposed) return;
           const next = this.createQueue();
+          this.reportResetProgress('Saving the new empty batch on this device...');
           await this.store.save(next.snapshot());
           this.installNewBatch(next);
           next.saveSnapshot = snapshot => this.store.save(snapshot);
           replaced = true;
         })());
-      } finally { this.resetting = false; }
+      } finally { this.finishResetProgress(); this.resetting = false; }
     }, false);
     return replaced;
   }
@@ -703,6 +732,7 @@ export class DashboardController {
   dispose(): Promise<void> {
     if (this.disposal) return this.disposal;
     this.disposed = true;
+    this.finishResetProgress();
     this.cancelFolderBrowse();
     if (!this.ready) {
       this.startupStopped = true;

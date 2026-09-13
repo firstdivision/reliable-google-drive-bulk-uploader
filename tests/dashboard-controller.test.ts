@@ -370,6 +370,65 @@ test('confirmed new batch recovers from unreadable or invalid saved records with
   }
 });
 
+test('reset reports cleanup, storage and commit progress until the empty batch is saved', async () => {
+  for (const failedStartup of [true, false]) {
+    const store = new TestStore();
+    store.saved = await restoredSnapshot();
+    store.failLoad = failedStartup;
+    const harness = fixture({ store });
+    await harness.controller.initialize();
+    const original = structuredClone(store.saved);
+    const opening = deferred();
+    const saving = deferred();
+    store.openGate = opening.promise;
+    store.saveGate = saving.promise;
+    try {
+      const resetting = harness.controller.startNewBatch(true);
+      assert.match(harness.snapshot().resetProgress!.message, failedStartup ? /Closing the previous/ : /Opening batch storage/);
+      await harness.waitSnapshot(snapshot => Boolean(snapshot.resetProgress?.message.includes('Opening')));
+      assert.equal(harness.snapshot().busy, true);
+      assert.equal(harness.snapshot().storageMessage, harness.snapshot().resetProgress!.message);
+      opening.resolve();
+      await harness.waitSnapshot(snapshot => Boolean(snapshot.resetProgress?.message.includes('Saving the new empty batch')));
+      await harness.waitSnapshot(snapshot => (snapshot.resetProgress?.elapsedSeconds ?? 0) >= 1);
+      assert.deepEqual(store.saved, original, 'old records remain until the write commits');
+      assert.equal(harness.snapshot().ready, !failedStartup);
+      saving.resolve();
+      assert.equal(await resetting, true);
+      assert.equal(harness.snapshot().resetProgress, null);
+      assert.equal(harness.snapshot().startupError, '');
+      assert.equal(harness.snapshot().summary.total, 0);
+      assert.equal(store.loaded, 1, 'reset never reloads the old records');
+    } finally {
+      opening.resolve();
+      saving.resolve();
+      await harness.controller.dispose();
+    }
+  }
+});
+
+test('reset cleanup timeout stops progress and retains the startup error and records', async () => {
+  const gate = deferred();
+  const locks = new TestLocks();
+  const harness = fixture({ startupTimeoutMs: 20, lockManager: {
+    async request(...args: Parameters<TestLocks['request']>) {
+      await gate.promise;
+      return locks.request(...args);
+    },
+  } });
+  await harness.controller.initialize();
+  const error = harness.snapshot().startupError;
+  const resetting = harness.controller.startNewBatch(true);
+  assert.match(harness.snapshot().resetProgress!.message, /Closing the previous/);
+  assert.equal(await resetting, false);
+  assert.equal(harness.snapshot().resetProgress, null);
+  assert.equal(harness.snapshot().startupError, error);
+  assert.match(harness.snapshot().actionMessage, /not finished closing/);
+  assert.equal(harness.store.saves.length, 0);
+  gate.resolve();
+  await harness.controller.dispose();
+});
+
 test('new batch recovers from a timed-out read and ignores its late result', async () => {
   const gate = deferred();
   const store = new TestStore();
@@ -408,6 +467,7 @@ test('startup recovery save failure retains old records and permits an explicit 
   assert.equal(harness.snapshot().ready, false);
   assert.equal(harness.snapshot().busy, false);
   assert.match(harness.snapshot().startupError, /Quota exceeded/);
+  assert.equal(harness.snapshot().resetProgress, null);
   store.failSave = false;
   assert.equal(await harness.controller.startNewBatch(true), true);
   assert.equal(store.loaded, 1);

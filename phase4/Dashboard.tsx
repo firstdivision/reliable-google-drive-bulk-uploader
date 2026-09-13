@@ -131,7 +131,8 @@ export function Dashboard({ controller }: Props) {
   const started = summary.total > 0 && (state.destinationLocked || summary.missingSources > 0);
   const sourceDisabled = !state.ready || state.busy || summary.enabled || summary.active > 0 || Boolean(summary.storageError);
   const selectionDisabled = !state.ready || state.busy || summary.missingSources > 0 || Boolean(summary.storageError);
-  const blockers = view.blockers.filter(item => item.kind !== 'loading' && item.kind !== 'folder' && (item.kind !== 'account' || started));
+  const blockers = state.resetProgress ? [] : view.blockers.filter(item => item.kind !== 'loading' && item.kind !== 'folder' && (item.kind !== 'account' || started));
+  const openingProgress = state.resetProgress || (!state.ready && !state.startupError ? state.startupProgress : null);
   const filesReady = summary.total > 0 && !summary.missingSources;
   const destinationReady = state.connected && Boolean(state.folderId);
   return <div className="app-shell">
@@ -140,13 +141,15 @@ export function Dashboard({ controller }: Props) {
     </header>
     <main>
       {page !== '#batch' && <a className="back-link" href="#batch"><ArrowLeft size={19} />Back to batch</a>}
-      <div className="page-heading"><h1 ref={heading} tabIndex={-1}>{page === '#destination' ? 'Destination folder' : page === '#settings' ? 'Settings' : !state.ready ? view.title : 'Upload to Google Drive'}</h1></div>
-      {!state.ready && !state.startupError && state.startupProgress && <section className="startup-progress" aria-label="Opening batch progress">
+      <div className="page-heading"><h1 ref={heading} tabIndex={-1}>{state.resetProgress ? 'Starting new batch...' : page === '#destination' ? 'Destination folder' : page === '#settings' ? 'Settings' : !state.ready ? view.title : 'Upload to Google Drive'}</h1></div>
+      {openingProgress && <section className="startup-progress" aria-label={state.resetProgress ? 'Starting new batch progress' : 'Opening batch progress'}>
         <div className="startup-stage" role="status" aria-atomic="true"><LoaderCircle className="startup-spinner" size={22} aria-hidden="true" />
-          <p>{state.startupProgress.message}</p></div>
-        <p className="startup-elapsed" role="timer" aria-live="off">{state.startupProgress.elapsedSeconds} seconds elapsed</p>
+          <p>{openingProgress.message}</p></div>
+        <p className="startup-elapsed" role="timer" aria-live="off">{openingProgress.elapsedSeconds} seconds elapsed</p>
         <p className="small muted">Local batch records only. No photos or videos are being uploaded.</p>
-        {state.startupProgress.elapsedSeconds >= 5 && <p className="small" role="status">Still waiting for the browser. Any startup error will appear here.</p>}
+        {openingProgress.elapsedSeconds >= 5 && <p className="small" role="status">{state.resetProgress
+          ? 'Still waiting for the browser. The new batch will appear when saving finishes.'
+          : 'Still waiting for the browser. Any startup error will appear here.'}</p>}
       </section>}
       {page === '#destination' && <section aria-label="Destination folder"><Destination controller={controller} state={state} />
         <a className="button primary destination-done" href="#batch">{destinationReady ? 'Done' : 'Back to batch'}<Check size={19} /></a>
@@ -184,7 +187,7 @@ export function Dashboard({ controller }: Props) {
         </a>
       </section>
       {state.selectionMessage && (!summary.total || summary.missingSources > 0) && <p className="selection-message" role="status">{state.selectionMessage}</p>}
-      {started && <section className="progress-section" aria-labelledby="progress-heading">
+      {started && !state.resetProgress && <section className="progress-section" aria-labelledby="progress-heading">
         <div className="progress-heading"><div><h2 id="progress-heading">{view.complete ? 'All files uploaded' : view.title}</h2><p>{summary.counts.completed.toLocaleString()} of {summary.total.toLocaleString()} files complete</p></div>
           <strong className="percentage">{formatPercent(summary)}<span>%</span></strong></div>
         <progress value={summary.confirmedBytes} max={summary.totalBytes || 1} aria-label="Google-confirmed upload progress" />
@@ -204,7 +207,7 @@ export function Dashboard({ controller }: Props) {
           {summary.counts.failed > 0 && <button className="button retry" disabled={!view.canRetry} onClick={() => controller.retryFailed()}><RotateCcw size={20} />Retry Failed ({summary.counts.failed.toLocaleString()})</button>}
           {!state.startupError && <NewBatchControl controller={controller} state={state} />}
         </div>
-        {!summary.enabled && !view.canResume && !view.complete && <p className="blocked-reason" id="resume-reason">{state.startupError ? 'Startup failed. Reload the saved batch or start a new batch above.' : state.busy ? 'Wait for the current operation to finish.' : !summary.total ? 'Select files, connect Google, and choose a destination to begin.' :
+        {!summary.enabled && !view.canResume && !view.complete && <p className="blocked-reason" id="resume-reason">{state.resetProgress ? 'Wait for the new batch to finish saving.' : state.startupError ? 'Startup failed. Reload the saved batch or start a new batch above.' : state.busy ? 'Wait for the current operation to finish.' : !summary.total ? 'Select files, connect Google, and choose a destination to begin.' :
           summary.remaining === summary.missingSources ? 'Resume is unavailable until you select the originals again.' :
           !state.connected ? 'Connect Google to enable upload.' : !state.folderId ? 'Choose a destination to enable upload.' :
           summary.counts.failed ? 'Use Retry Failed to retry failed entries.' : view.blockers[0]?.message || 'Waiting for active requests to stop.'}</p>}

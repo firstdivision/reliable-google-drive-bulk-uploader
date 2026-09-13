@@ -7,7 +7,7 @@ import type { DashboardController, DashboardSnapshot } from '../phase4/controlle
 
 function render(overrides: Partial<DashboardSnapshot> = {}) {
   const state: DashboardSnapshot = { ready: true, busy: false, connected: false, startupError: '',
-    startupProgress: null,
+    startupProgress: null, resetProgress: null,
     actionMessage: '', selectionMessage: '', storageMessage: 'Queue metadata saved', retentionMessage: '',
     folderId: 'saved-folder', folderName: 'Saved batch destination', destinationLocked: true,
     folders: [], accountLabel: '', online: true,
@@ -70,6 +70,26 @@ test('startup shows the current stage and elapsed time without fake percentages 
   assert.doesNotMatch(render().html, /startup-progress|seconds elapsed/);
   assert.doesNotMatch(render({ ready: false, startupError: 'Storage failed.',
     startupProgress: { message: 'Stale stage', elapsedSeconds: 15 } }).html, /startup-progress|Stale stage/);
+});
+
+test('reset progress replaces stale startup warnings and stays visible for loaded batches', () => {
+  for (const ready of [false, true]) {
+    const { html } = render({ ready, busy: true, startupError: ready ? '' : 'Old startup error',
+      startupProgress: { message: 'Old loading stage', elapsedSeconds: 0 },
+      resetProgress: { message: 'Saving the new empty batch on this device...', elapsedSeconds: 6 } });
+    assert.match(html, /Starting new batch\.\.\.<\/h1>/);
+    assert.match(html, /aria-label="Starting new batch progress"/);
+    assert.match(html, /Saving the new empty batch on this device/);
+    assert.match(html, /role="timer" aria-live="off">6 seconds elapsed/);
+    assert.match(html, /The new batch will appear when saving finishes/);
+    assert.match(html, /Wait for the new batch to finish saving/);
+    assert.doesNotMatch(html, /Batch unavailable|Old startup error|Old loading stage|recovery-panel|Startup failed/);
+    assert.match(html, /type="file"[^>]*disabled=""/);
+  }
+  const { html } = render({ ready: false, busy: false, startupError: 'Reset save failed', resetProgress: null });
+  assert.match(html, /Batch unavailable|Reset save failed/);
+  assert.match(html, /Reload saved batch/);
+  assert.doesNotMatch(html, /Starting new batch progress/);
 });
 
 test('wake control distinguishes requested state from actual acquisition', () => {

@@ -57,6 +57,15 @@ seconds are not announced every second, and reduced-motion preferences stop the
 spinner. Updates and the existing deadline require the browser's event loop to run;
 this change neither speeds up storage nor diagnoses the unresolved phone stall.
 
+Confirmed reset immediately shows **Starting new batch...** instead of the stale
+startup warning. Reset has its own elapsed timer spanning cleanup, lock acquisition,
+storage opening, and saving the empty batch; it also appears for already-loaded
+batches. The old error is retained internally until reset succeeds, and failure
+restores recovery controls. Selection remains disabled until the empty snapshot
+commits. Reset does not reload the old records or touch source media or Drive files.
+For a failed-startup reset, cleanup and reopening/saving have separate 15-second
+limits; no timeout or storage-safety guarantees have changed.
+
 The user rejected reconstructing large source selections as a normal recovery
 workflow and explicitly chose to retain the browser-only app. The primary
 acceptance workflow keeps the page open and active through completion. Existing
